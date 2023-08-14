@@ -185,7 +185,7 @@ class ofdm_adaptive_sim_tun(_ofdm_adaptive_sim):
 def main(
         top_block_cls=ofdm_adaptive_sim_src,
         config_dict=None,
-        run_config_file="sim.run.json",):
+        run_config_file="experiments.json",):
 
     tb = top_block_cls(
         config_dict=config_dict,
@@ -208,10 +208,15 @@ def main(
             with open(run_config_file, "r") as f:
                 content = f.read()
                 config = json.loads(content)
-                for k, v in config.items():
-                    if (setter := getattr(tb, f"set_{k}", None)) and getattr(tb, k):
-                        print(f"update {k}={v}")
-                        setter(v)
+                for e in config:
+                    if e["name"] == config_dict["name"] and "live_config" in config:
+                        for k, v in config["live_config"].items():
+                            if (setter := getattr(tb, f"set_{k}", None)) and getattr(tb, k):
+                                print(f"update {k}={v}")
+                                setter(v)
+                        break
+                    else:
+                        print(f"live_config not found in {run_config_file}")
         except Exception as ex:
             print(f"Config file not found or broken ({tb.run_config_file})")
             print(str(ex))
