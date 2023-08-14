@@ -3,6 +3,7 @@
 import argparse
 import json
 import experiment.monitoring as monitoring
+import experiment.traffic_generators as traffic_generators
 import multiprocessing
 import os
 import pymongo
@@ -34,6 +35,12 @@ class capture_stdout():
         os.close(self.log)
 
 
+def run_ofdm(log_store_fname, sim_cls, ofdm_config, config_file):
+    with capture_stdout(log_store_fname) as _:
+        sim.main(top_block_cls=sim_cls, config_dict=ofdm_config,
+                 run_config_file=config_file)
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--logs", type=str, default=".",
                     help="Logs and other artifacts location")
@@ -61,7 +68,7 @@ with open(experiments_file, "r") as f:
         ofdm_cfg = e["ofdm_config"]
         if "fec_codes" in ofdm_cfg and len(ofdm_cfg["fec_codes"]):
             ofdm_cfg["fec_codes"] = [(name, f"{experimets_path}/{fn}")
-                              for name, fn in ofdm_cfg["fec_codes"]]
+                                     for name, fn in ofdm_cfg["fec_codes"]]
 
 run_timestamp = int(time.time())
 run_timestamp = 0
@@ -79,38 +86,55 @@ for i, e in enumerate(experiments):
 
     monitor_process = None
     monitor_process_pid = None
+    collection_name = f"{name}_{run_timestamp}"
+    collection = None
     if probe_url and db_url:
-        print(db_url)
         db_client = pymongo.MongoClient(db_url)
         db = db_client["probe_data"]
+        collection = db[collection_name]
         monitor_process = multiprocessing.Process(
-            target=monitoring.start_collect, args=(probe_url, db, f"{name}_{run_timestamp}",))
+            target=monitoring.start_collect, args=(probe_url, db, collection_name,))
         monitor_process.start()
         monitor_process_pid = monitor_process.pid
 
-    print(f"Run experiment {name}, number: {i}, PID: {os.getpid()}, monitoring PID: {monitor_process_pid}")
-    #print(e)
+    log_store_fname = f"{logs_store}/experiment_{run_timestamp}_{name}.log"
+    experiment_fname = f"{logs_store}/experiment_{run_timestamp}_{name}.json"
+    with open(experiment_fname, "w") as f:
+        f.write(json.dumps(e))
 
     try:
+        ofdm_config = e["ofdm_config"]
+        ofdm_config["name"] = e["name"]
+        ofdm_process = multiprocessing.Process(
+            target=run_ofdm, kwargs={"log_store_fname": log_store_fname, "sim_cls": sim_cls, "ofdm_config": ofdm_config, "config_file": experiments_file})
+        ofdm_process.start()
 
-        log_store_fname = f"{logs_store}/experiment_{run_timestamp}_{name}.log"
-        experiment_fname = f"{logs_store}/experiment_{run_timestamp}_{name}.json"
+        traffic_generator = e.get("traffic_generator", None)
+        traffic_generator_process = None
+        traffic_generator_pid = None
 
-        with open(experiment_fname, "w") as f:
-            f.write(json.dumps(e))
+        if traffic_generator:
+            tr_func = getattr(traffic_generators, traffic_generator["func"])
+            if tr_func:
+                args = traffic_generator["kwargs"]
+                args["collection"] = collection
+                print(args)
+                traffic_generator_process = multiprocessing.Process(
+                    target=tr_func, kwargs=args)
+                traffic_generator_process.start()
+                traffic_generator_pid = traffic_generator_process.pid
+        print(
+            f"Running experiment {name}, number: {i}, PID: {ofdm_process.pid}, monitoring PID: {monitor_process_pid}, traffic PID: {traffic_generator_pid}")
 
-        with capture_stdout(log_store_fname) as _:
-            print(
-                timeit.timeit(
-                    lambda: sim.main(
-                        top_block_cls=sim_cls,
-                        config_dict=e["ofdm_config"],
-                        run_config_file=experiments_file),
-                    number=1))
+        while True:
+            pass
 
+    except KeyboardInterrupt as _:
         if monitor_process and monitor_process.is_alive():
             monitor_process.terminate()
-            time.sleep(1)
+        if ofdm_process and ofdm_process.is_alive():
+            ofdm_process.terminate()
+        time.sleep(1)
 
     except Exception as ex:
         print("experiment failed")
