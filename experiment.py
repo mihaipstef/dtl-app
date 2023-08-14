@@ -7,7 +7,6 @@ import multiprocessing
 import os
 import pymongo
 import experiment.sim as sim
-import subprocess
 import sys
 import time
 import timeit
@@ -89,38 +88,25 @@ for i, e in enumerate(experiments):
         monitor_process.start()
         monitor_process_pid = monitor_process.pid
 
-    print(f"Run experiment {name}, number: {i}, monitoring PID: {monitor_process_pid}")
+    print(f"Run experiment {name}, number: {i}, PID: {os.getpid()}, monitoring PID: {monitor_process_pid}")
     #print(e)
 
     try:
 
         log_store_fname = f"{logs_store}/experiment_{run_timestamp}_{name}.log"
-        result_fname = f"{logs_store}/experiment_{run_timestamp}_{name}.result"
-        config_fname = f"{logs_store}/experiment_{run_timestamp}_{name}.run.json"
         experiment_fname = f"{logs_store}/experiment_{run_timestamp}_{name}.json"
 
         with open(experiment_fname, "w") as f:
             f.write(json.dumps(e))
 
-        if "live_config" in e:
-            with open(config_fname, "w") as f:
-                f.write(json.dumps(e["live_config"]))
-
-        print(e["ofdm_config"])
         with capture_stdout(log_store_fname) as _:
             print(
                 timeit.timeit(
                     lambda: sim.main(
                         top_block_cls=sim_cls,
                         config_dict=e["ofdm_config"],
-                        run_config_file=config_fname,),
+                        run_config_file=experiments_file),
                     number=1))
-
-        result = subprocess.check_output(
-            [f"{os.path.dirname(__file__)}/log.sh", log_store_fname, log_store_fname])
-
-        with open(result_fname, "w") as f:
-            f.write(result.decode("utf-8"))
 
         if monitor_process and monitor_process.is_alive():
             monitor_process.terminate()
