@@ -207,16 +207,15 @@ def main(
             print(f"Load: {run_config_file}")
             with open(run_config_file, "r") as f:
                 content = f.read()
-                config = json.loads(content)
-                for e in config:
-                    if e["name"] == config_dict["name"] and "live_config" in config:
-                        for k, v in config["live_config"].items():
+                experiments = json.loads(content)
+                for e in experiments:
+                    if e["name"] == config_dict["name"] and "live_config" in e:
+                        for k, v in e["live_config"].items():
                             if (setter := getattr(tb, f"set_{k}", None)) and getattr(tb, k):
-                                print(f"update {k}={v}")
+                                print(f"live config update {k}={v}")
                                 setter(v)
                         break
-                    else:
-                        print(f"live_config not found in {run_config_file}")
+
         except Exception as ex:
             print(f"Config file not found or broken ({tb.run_config_file})")
             print(str(ex))
