@@ -42,7 +42,7 @@ A list of experiments in JSON format where each experiment contains:
 
 ## Setup tun interfaces
 
-Setup 2 tun interafces and the routing rules required by `ofdm_adaptive_sim_tun` sim_cls by executing `setup_tun_env.sh`:
+Setup 2 tun interafces and the routing rules required by `ofdm_adaptive_sim_tun` sim_cls by executing `setup_tun_env.sh` (see [Inject traffic in OFDM simulation via tun interafces](docs/local_tuntap_test_env.md)):
 ```
 sudo ./setup_tun_env.sh
 ```
