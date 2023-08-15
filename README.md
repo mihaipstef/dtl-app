@@ -3,7 +3,7 @@ Contains tools for running experiments in local environment
 
 ## Experiment config
 
-A list of experiments in JSON format where each experiment contains:
+A list of experiments in JSON format. Each experiment contains:
 - top level config i.e. experiment name, monitoring config etc;
 - ofdm_config: OFDM adaptive configuration;
 - traffic generator: the tool used to generate traffic;
