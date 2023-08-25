@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from gnuradio import (analog,
                       blocks,
                       channels,
@@ -24,6 +22,7 @@ class _ofdm_adaptive_sim(gr.top_block):
     def __init__(self, config_dict, run_config_file):
         gr.top_block.__init__(
             self, "OFDM Adaptive Simulator", catch_exceptions=True)
+        ofdm_config = config_dict.get("ofdm_config", {})
         self.samp_rate = samp_rate = config_dict.get("sample_rate", 200000)
         self.n_bytes = 100
         self.direct_channel_noise_level = 0.0001
@@ -31,11 +30,11 @@ class _ofdm_adaptive_sim(gr.top_block):
         self.fft_len = 64
         self.cp_len = 16
         self.run_config_file = run_config_file
-        self.use_sync_correct = config_dict.get("use_sync_correct", True)
+        self.use_sync_correct = ofdm_config.get("use_sync_correct", True)
         self.max_doppler = 0
         self.propagation_paths = config_dict.get(
             "propagation_paths", [(0, 0, 0, 1)])
-        self.frame_length = config_dict.get("frame_length", 20)
+        self.frame_length = ofdm_config.get("frame_length", 20)
         self.frame_samples = (self.frame_length + 4) * \
             (self.fft_len + self.cp_len)
         self.data_bytes = config_dict.get("data_bytes", None)
@@ -46,7 +45,7 @@ class _ofdm_adaptive_sim(gr.top_block):
 
         #self.zeromq_pub = zeromq.pub_msg_sink('tcp://0.0.0.0:5552', 100, True)
         self.tx = dtl.ofdm_adaptive_tx.from_parameters(
-            config_dict=config_dict,
+            config_dict=ofdm_config,
             fft_len=self.fft_len,
             cp_len=self.cp_len,
             rolloff=0,
@@ -54,7 +53,7 @@ class _ofdm_adaptive_sim(gr.top_block):
             frame_length=self.frame_length,
         )
         self.rx = dtl.ofdm_adaptive_rx.from_parameters(
-            config_dict=config_dict,
+            config_dict=ofdm_config,
             fft_len=self.fft_len,
             cp_len=self.cp_len,
             rolloff=0,
@@ -75,9 +74,9 @@ class _ofdm_adaptive_sim(gr.top_block):
         self.throtle = blocks.throttle(gr.sizeof_gr_complex*1, samp_rate, True)
 
         self.msg_debug = blocks.message_debug(True)
-
+        print(config_dict)
         monitor_address = config_dict.get(
-            "monitor_address", "tcp://127.0.0.1:5555")
+            "monitor_probe", "tcp://127.0.0.1:5555")
         monitor_probe_name = config_dict.get("monitor_probe_name", "probe")
 
         self.monitor_probe = dtl.zmq_probe(
@@ -135,7 +134,7 @@ class _ofdm_adaptive_sim(gr.top_block):
         return self
 
 
-
+# Simulated input and simulated channel
 class ofdm_adaptive_sim_src(_ofdm_adaptive_sim):
 
 
@@ -155,6 +154,7 @@ class ofdm_adaptive_sim_src(_ofdm_adaptive_sim):
         return self
 
 
+# Real input over tun/tap interface and simulated channel
 class ofdm_adaptive_sim_tun(_ofdm_adaptive_sim):
 
     def __init__(self, config_dict, run_config_file):
@@ -180,54 +180,3 @@ class ofdm_adaptive_sim_tun(_ofdm_adaptive_sim):
         self.msg_connect(self.tun1, "pdus", self.tun0, "pdus")
 
         return self
-
-
-def main(
-        top_block_cls=ofdm_adaptive_sim_src,
-        config_dict=None,
-        run_config_file="experiments.json",):
-
-    tb = top_block_cls(
-        config_dict=config_dict,
-        run_config_file=run_config_file,).wire_it()
-
-    def sig_handler(sig=None, frame=None):
-        tb.stop()
-        tb.wait()
-
-    # To update parameters on the fly:
-    # - define attribute to ofdm_adaptive_sim, eg new_attr
-    # - implement setter, eg. set_new_attr
-    def config_update(sig=None, frame=None):
-        try:
-            if "/" in tb.run_config_file:
-                run_config_file = f"{tb.run_config_file}"
-            else:
-                run_config_file = f"{os.path.dirname(__file__)}/{tb.run_config_file}"
-            print(f"Load: {run_config_file}")
-            with open(run_config_file, "r") as f:
-                content = f.read()
-                experiments = json.loads(content)
-                for e in experiments:
-                    if e["name"] == config_dict["name"] and "live_config" in e:
-                        for k, v in e["live_config"].items():
-                            if (setter := getattr(tb, f"set_{k}", None)) and getattr(tb, k):
-                                print(f"live config update {k}={v}")
-                                setter(v)
-                        break
-
-        except Exception as ex:
-            print(f"Config file not found or broken ({tb.run_config_file})")
-            print(str(ex))
-
-    signal.signal(signal.SIGINT, sig_handler)
-    signal.signal(signal.SIGTERM, sig_handler)
-    signal.signal(signal.SIGHUP, config_update)
-
-    config_update()
-
-    tb.run()
-
-
-if __name__ == '__main__':
-    main()
