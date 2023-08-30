@@ -30,4 +30,7 @@ def start_collect(probe, db, collection_name):
             probe_document = probe_data["msg"]
             probe_document["probe_name"] = probe_data.get("probe_name", "john_doe")
             probe_document["insert_ts"] = datetime.datetime.utcnow()
+            if "ts" in probe_document:
+                ts = probe_document["ts"]
+                probe_document["ts"] = datetime.datetime.utcfromtimestamp(ts/1000.0)
             collection.insert_one(probe_document)
