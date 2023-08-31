@@ -46,25 +46,30 @@ def icmp_gen(collection, dst_ip_addr, size=64, ping_rate=1):
 def icmp_sniff(collection, src_ip_addr, dst_iface, verbose=False):
     expected_seq = None
     lost_packets = 0
-    packet_error_rate = None
+    packet_error_rate = 0
     while True:
         packets = sniff(iface=dst_iface, filter=f"icmp", count=1)
         ts = int(dt.datetime.utcnow().timestamp()*1000) % (2 ** 32)
         packet = packets[0]
         latency = None
-        if len(packet[IP].options) == 1:
-            latency = ts - int(packet[IP].options[0].timestamp)
-        if expected_seq is None:
-            expected_seq = packet[ICMP].seq
-        else:
+        if ICMP not in packet or packet[ICMP].seq is None and packet[ICMP].id != 100:
+            continue
+        if len(packet[IP].options) == 1 and getattr(packet[IP].options[0], "timestamp", None) is not None:
+            sent_ts = packet[IP].options[0].timestamp
+            if sent_ts > ts:
+                latency = 2 ** 32 + ts - sent_ts
+            else:
+                latency = ts - sent_ts
+
+        if expected_seq is not None:
             lost_packets += packet[ICMP].seq - expected_seq
             packet_error_rate = 100 * lost_packets / packet[ICMP].seq
+        expected_seq = packet[ICMP].seq + 1
         if verbose:
             print(f"ICMP: {packet[IP].src} --> {packet[IP].dst}, seq={packet[ICMP].seq}"
                 f", expected_seq={expected_seq}, one_way_latency={latency}ms"
-                f", packet_error_rate={packet_error_rate}%")
-        if collection is not None:
-            print(collection)
-            collection.insert_one({"probe_name": "icmp_ping_failure", "insert_ts": dt.datetime.utcnow(),
+                f", packet_error_rate={packet_error_rate}%"
+                f", sent_ts={sent_ts}, ts={ts}")
+        if collection is not None and latency is not None:
+            collection.insert_one({"probe_name": "icmp_ping", "insert_ts": dt.datetime.utcnow(),
                                    "one_way_latency": latency, "lost_packets": lost_packets, "packet_error_rate": packet_error_rate})
-        expected_seq = packet[ICMP].seq + 1
