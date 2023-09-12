@@ -2,9 +2,12 @@
 
 import argparse
 import json
-import app.monitoring as monitoring
-import app.traffic_generators as traffic_generators
-from  app import sim, pluto, flow
+from testbed import (
+    app,
+    monitoring,
+    traffic_generators,
+)
+from  apps import sim, simplex
 import multiprocessing
 import os
 import pymongo
@@ -34,9 +37,9 @@ class capture_stdout():
         os.close(self.log)
 
 
-def run_ofdm(log_store_fname, flow_cls, config, config_file):
+def run_app(log_store_fname, dtl_app, config, config_file):
     with capture_stdout(log_store_fname) as _:
-        flow.run(top_block_cls=flow_cls, config_dict=config,
+        app.run(dtl_app=dtl_app, config_dict=config,
                     run_config_file=config_file)
 
 
@@ -45,16 +48,16 @@ parser.add_argument("--logs", type=str, default=".",
                     help="Logs and other artifacts location")
 parser.add_argument("--config", type=str, default="config.json",
                     help="Experiment configuration json file")
-parser.add_argument("--flow_cls", type=str, default="ofdm_adaptive_loopback_src",
+parser.add_argument("--dtl_app", type=str, default="ofdm_adaptive_loopback_src",
                     help="Simulator class used for the experiment")
 
 args = parser.parse_args()
 
 logs_folder = args.logs
 config_file = args.config
-flow_cls = getattr(sim, args.flow_cls, None)
-if flow_cls is None:
-    flow_cls = getattr(pluto, args.flow_cls, sim.ofdm_adaptive_sim_src)
+dtl_app = getattr(sim, args.dtl_app, None)
+if dtl_app is None:
+    dtl_app = getattr(simplex, args.dtl_app, sim.ofdm_adaptive_sim_src)
 
 logs_store = f"{logs_folder}"
 current_log = f"{logs_folder}/sim.log"
@@ -99,9 +102,9 @@ with open(config_file, "r") as f:
         ofdm_config = cfg["ofdm_config"]
         ofdm_config["name"] = cfg["name"]
         ofdm_process = multiprocessing.Process(
-            target=run_ofdm, kwargs={"log_store_fname": log_store_fname, "flow_cls": flow_cls, "config": cfg, "config_file": config_file})
+            target=run_app, kwargs={"log_store_fname": log_store_fname, "dtl_app": dtl_app, "config": cfg, "config_file": config_file})
         ofdm_process.start()
-        #run_ofdm(**{"log_store_fname": log_store_fname, "flow_cls": flow_cls, "ofdm_config": ofdm_config, "config_file": experiments_file})
+        #run_ofdm(**{"log_store_fname": log_store_fname, "dtl_app": dtl_app, "ofdm_config": ofdm_config, "config_file": experiments_file})
 
         traffic_generator = cfg.get("traffic_generator", None)
         traffic_generator_process = None

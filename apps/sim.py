@@ -1,3 +1,7 @@
+from testbed import (
+    app,
+    testbed_io,
+)
 from gnuradio import (analog,
                       blocks,
                       channels,
@@ -7,7 +11,7 @@ from gnuradio import (analog,
                       pdu,)
 
 
-class _ofdm_adaptive_sim(gr.top_block):
+class _ofdm_adaptive_sim(app.dtl_app):
 
     def __new__(cls, *args, **kwargs):
         # Incomplete - don't allow instantiation
@@ -156,24 +160,18 @@ class ofdm_adaptive_sim_tun(_ofdm_adaptive_sim):
 
     def __init__(self, config_dict, run_config_file):
         super().__init__(config_dict, run_config_file)
-        self.tun0 = network.tuntap_pdu("tun0", 500, True)
-        self.tun1 = network.tuntap_pdu("tun1", 500, True)
-        self.to_pdu = pdu.tagged_stream_to_pdu(gr.types.byte_t, self.rx.packet_length_tag_key)
-        self.to_stream = pdu.pdu_to_stream_b(pdu.EARLY_BURST_DROP, 128)
+        self.input = testbed_io.tun_in("tun0", 500, 128)
+        self.output = testbed_io.tun_out("tun1", 500, self.rx.packet_length_tag_key)
+
 
     def wire_it(self):
         super().wire_it()
 
-        self.msg_connect(self.tun0, "pdus", self.to_stream, "pdus")
         if self.data_bytes is None:
-            self.connect((self.to_stream, 0), (self.tx, 0))
+            self.connect((self.input, 0), (self.tx, 0))
         else:
-            self.connect((self.to_stream, 0), blocks.head(
+            self.connect((self.input, 0), blocks.head(
                 gr.sizeof_char, self.data_bytes), (self.tx, 0))
-        self.connect((self.rx, 0), self.to_pdu)
-        self.msg_connect(self.to_pdu, "pdus", self.tun1, "pdus")
-        self.msg_connect(self.to_pdu, "pdus", blocks.message_debug(), "print")
-        self.msg_connect(self.tun0, "pdus", blocks.message_debug(), "print")
-        self.msg_connect(self.tun1, "pdus", self.tun0, "pdus")
-
+        self.connect((self.rx, 0), self.output)
+        self.msg_connect(self.output.msg_out(), "pdus", self.input.msg_in(), "pdus")
         return self
