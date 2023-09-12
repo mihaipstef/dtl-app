@@ -1,4 +1,7 @@
-from app import sim
+from testbed import (
+    app,
+    testbed_io,
+)
 
 from gnuradio import (blocks,
                       dtl,
@@ -10,25 +13,27 @@ from gnuradio import (blocks,
 
 
 # Real input over tun/tap interface and real channel using Pluto SDR
-class ofdm_adaptive_real_tun_tx(gr.top_block):
+class ofdm_adaptive_simplex_tx(app.dtl_app):
 
     def __init__(self, config_dict, run_config_file):
 
-        gr.top_block.__init__(
-            self, "OFDM Adaptive Tx", catch_exceptions=True)
+        app.dtl_app.__init__(
+            self, config_dict, run_config_file)
 
-        self.run_config_file = run_config_file
         self.direct_carrier = config_dict.get("direct_carrier", 2400000000)
         self.feedback_carrier = config_dict.get("feedback_carrier", 850000000)
         self.data_bytes = config_dict.get("data_bytes", None)
+        self.direct_tun = config_dict.get("direct_tun", "tun0")
+        self.direct_uri = config_dict.get("direct_uri", "ip:192.168.2.1")
+        self.feedback_uri = config_dict.get("feedback_uri", "ip:192.168.3.1")
         # Use TX default sample rate if not configured
         self.sample_rate = config_dict.get("sample_rate", dtl.ofdm_adaptive_config.ofdm_adaptive_tx_config.sample_rate)
         self.len_key = "len_key"
 
 
-        self.tun0 = network.tuntap_pdu("tun0", 500, True)
-        self.to_stream = pdu.pdu_to_stream_b(pdu.EARLY_BURST_DROP, 128)
-
+        self.data_input = testbed_io.tun_in("tun0", 500, 128)
+        self.data_output = testbed_io.pluto_out('ip:192.168.2.1' if 'ip:192.168.2.1' else iio.get_pluto_uri(), self.sample_rate, self.direct_carrier, self.len_key, 32768)
+        self.feedback_in = testbed_io.pluto_in('ip:192.168.2.1' if 'ip:192.168.2.1' else iio.get_pluto_uri(), self.sample_rate, self.feedback_carrier, self.len_key, 32768)
 
         self.tx = dtl.ofdm_adaptive_tx.from_parameters(
             config_dict=config_dict["ofdm_config"],
@@ -45,71 +50,53 @@ class ofdm_adaptive_real_tun_tx(gr.top_block):
         self.monitor_probe = dtl.zmq_probe(
             monitor_address, monitor_probe_name, bind=True)
 
-        self.pluto_direct_sink = iio.fmcomms2_sink_fc32('ip:192.168.2.1' if 'ip:192.168.2.1' else iio.get_pluto_uri(), [True, True], 32768, False)
-        self.pluto_direct_sink.set_len_tag_key('')
-        self.pluto_direct_sink.set_bandwidth(self.tx.sample_rate)
-        self.pluto_direct_sink.set_frequency(self.direct_carrier)
-        self.pluto_direct_sink.set_samplerate(self.tx.sample_rate)
-        self.pluto_direct_sink.set_attenuation(0, 20.0)
-        self.pluto_direct_sink.set_filter_params('Auto', '', 0, 0)
-
-        self.pluto_feedback_src = iio.fmcomms2_source_fc32('ip:192.168.2.1' if 'ip:192.168.2.1' else iio.get_pluto_uri(), [True, True], 32768)
-        self.pluto_feedback_src.set_len_tag_key(self.len_key)
-        self.pluto_feedback_src.set_frequency(self.feedback_carrier)
-        self.pluto_feedback_src.set_samplerate(self.tx.sample_rate)
-        self.pluto_feedback_src.set_gain_mode(0, 'manual')
-        self.pluto_feedback_src.set_gain(0, 10)
-        self.pluto_feedback_src.set_quadrature(True)
-        self.pluto_feedback_src.set_rfdc(True)
-        self.pluto_feedback_src.set_bbdc(True)
-        self.pluto_feedback_src.set_filter_params('Auto', '', 0, 0)
-
         self.clipping_control = blocks.multiply_const_cc(config_dict.get("clipping_amp", 0.02))
 
 
     def wire_it(self):
 
         # Direct path
-        self.msg_connect(self.tun0, "pdus", self.to_stream, "pdus")
         if self.data_bytes is None:
-            self.connect((self.to_stream, 0), (self.tx, 0),  self.clipping_control,
+            self.connect((self.data_input, 0), (self.tx, 0),  self.clipping_control,
                     filter.rational_resampler_ccc(
                         interpolation=1,
                         decimation=1,
                         taps=[],
                         fractional_bw=0.49),
-                    self.pluto_direct_sink)
+                    self.data_output)
         else:
-            self.connect((self.to_stream, 0), blocks.head(
+            self.connect((self.data_input, 0), blocks.head(
                 gr.sizeof_char, self.data_bytes), (self.tx, 0), self.clipping_control, 
                 filter.rational_resampler_ccc(
                     interpolation=1,
                     decimation=1,
                     taps=[],
                     fractional_bw=0.49),
-                self.pluto_direct_sink)
+                self.data_output)
 
         # Feedback path
-        self.connect(self.pluto_feedback_src,
+        self.connect(self.feedback_in,
             (self.tx, 1))
 
         # monitor and debug
-
         self.msg_connect((self.tx, "monitor"), (blocks.message_debug(), "store"))
-        self.msg_connect(self.tun0, "pdus", blocks.message_debug(), "print")
 
         return self
 
 
-class ofdm_adaptive_real_tun_rx(gr.top_block):
+class ofdm_adaptive_simplex_rx(app.dtl_app):
 
     def __init__(self, config_dict, run_config_file):
-        gr.top_block.__init__(
-            self, "OFDM Adaptive Tx", catch_exceptions=True)
+        app.dtl_app.__init__(
+            self, config_dict, run_config_file)
 
         self.run_config_file = run_config_file
         self.direct_carrier = config_dict.get("direct_carrier", 2100000000)
         self.feedback_carrier = config_dict.get("feedback_carrier", 850000000)
+        self.direct_tun = config_dict.get("direct_tun", "tun1")
+        self.direct_uri = config_dict.get("direct_uri", "ip:192.168.2.1")
+        self.feedback_uri = config_dict.get("feedback_uri", "ip:192.168.3.1")
+
         # Use TX default sample rate if not configured
         self.samp_rate = config_dict.get("sample_rate", dtl.ofdm_adaptive_config.ofdm_adaptive_tx_config.sample_rate)
         self.len_key = "len_key"
@@ -121,8 +108,9 @@ class ofdm_adaptive_real_tun_rx(gr.top_block):
             packet_length_tag_key=self.len_key,
         )
 
-        self.tun1 = network.tuntap_pdu("tun1", 500, True)
-        self.to_pdu = pdu.tagged_stream_to_pdu(gr.types.byte_t, self.rx.packet_length_tag_key)
+        self.data_out = testbed_io.tun_out(self.direct_tun, 500, self.len_key)
+        self.data_in = testbed_io.pluto_in(self.direct_uri, self.sample_rate, self.direct_carrier, self.len_key, 32768)
+        self.feedback_out = testbed_io.pluto_in(self.feedback_uri, self.sample_rate, self.feedback_carrier, self.len_key, 32768)
 
         monitor_address = config_dict.get(
             "monitor_probe", "tcp://127.0.0.1:5555")
@@ -130,35 +118,16 @@ class ofdm_adaptive_real_tun_rx(gr.top_block):
         self.monitor_probe = dtl.zmq_probe(
             monitor_address, monitor_probe_name, bind=True)
 
-        self.pluto_direct_src = iio.fmcomms2_source_fc32('ip:192.168.3.1' if 'ip:192.168.3.1' else iio.get_pluto_uri(), [True, True], 32768)
-        self.pluto_direct_src.set_len_tag_key(self.len_key)
-        self.pluto_direct_src.set_frequency(self.direct_carrier)
-        self.pluto_direct_src.set_samplerate(self.samp_rate)
-        self.pluto_direct_src.set_gain_mode(0, 'slow_attack')
-        self.pluto_direct_src.set_gain(0, 30)
-        self.pluto_direct_src.set_quadrature(True)
-        self.pluto_direct_src.set_rfdc(True)
-        self.pluto_direct_src.set_bbdc(True)
-        self.pluto_direct_src.set_filter_params('Auto', '', 0, 0)
-
-        self.pluto_feedback_sink = iio.fmcomms2_sink_fc32('ip:192.168.3.1' if 'ip:192.168.3.1' else iio.get_pluto_uri(), [True, True], 32768, False)
-        self.pluto_feedback_sink.set_len_tag_key('')
-        self.pluto_feedback_sink.set_bandwidth(self.samp_rate)
-        self.pluto_feedback_sink.set_frequency(self.feedback_carrier)
-        self.pluto_feedback_sink.set_samplerate(self.samp_rate)
-        self.pluto_feedback_sink.set_attenuation(0, 10.0)
-        self.pluto_feedback_sink.set_filter_params('Auto', '', 0, 0)
-
 
     def wire_it(self):
 
         # Direct path
-        self.connect(self.pluto_direct_src, (self.rx, 0), self.to_pdu)
+        self.connect(self.data_in, (self.rx, 0), self.to_pdu)
         self.msg_connect(self.to_pdu, "pdus", self.tun1, "pdus")
 
         # Feedback path
         self.connect(
-            (self.rx, 1), self.pluto_feedback_sink)
+            (self.rx, 1), self.feedback_out)
 
         # monitor and debug
         self.connect((self.rx, 0), blocks.null_sink(gr.sizeof_char))
@@ -167,6 +136,5 @@ class ofdm_adaptive_real_tun_rx(gr.top_block):
         self.msg_connect((self.rx, "monitor"),
                          (blocks.message_debug(True), "store"))
         self.msg_connect((self.rx, "monitor"), (self.monitor_probe, "in"))
-        self.msg_connect(self.to_pdu, "pdus", blocks.message_debug(), "print")
 
         return self

@@ -1,14 +1,34 @@
-from app import sim
+from abc import ABC, abstractmethod
+from gnuradio import (analog,
+                      blocks,
+                      channels,
+                      dtl,
+                      gr,
+                      iio,
+                      network,
+                      pdu,)
 import json
-import os
 import signal
 
+
+class dtl_app(ABC, gr.top_block):
+
+    def __init__(self, config_dict, run_config_file):
+        gr.top_block.__init__(
+            self, "DTL app", catch_exceptions=True)
+        self.run_config_file = run_config_file
+
+    @abstractmethod
+    def wire_it(self):
+        ...
+
+
 def run(
-        top_block_cls=sim.ofdm_adaptive_sim_src,
+        dtl_app=dtl_app,
         config_dict=None,
         run_config_file="experiments.json",):
 
-    tb = top_block_cls(
+    tb = dtl_app(
         config_dict=config_dict,
         run_config_file=run_config_file,).wire_it()
 

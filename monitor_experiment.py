@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
-import app.monitoring
+import testbed.monitoring
 import pymongo
 
 
