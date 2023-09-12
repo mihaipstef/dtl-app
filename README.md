@@ -1,7 +1,7 @@
-# dtl-experiment
-Contains tools for running experiments in local environment
+# dtl-app
+Contains tools for running gnuradio applications in DTL environment
 
-## Experiment config
+## App config example
 
 A list of experiments in JSON format. Each experiment contains:
 - top level config i.e. experiment name, monitoring config etc;
