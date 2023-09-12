@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
-from experiment.traffic_generators import icmp_ping
+from app.traffic_generators import icmp_ping
 import multiprocessing as mp
 import pymongo
 
