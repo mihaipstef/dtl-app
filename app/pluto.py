@@ -1,4 +1,4 @@
-from experiment import sim
+from app import sim
 
 from gnuradio import (blocks,
                       dtl,

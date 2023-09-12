@@ -5,9 +5,6 @@ from gnuradio import (analog,
                       gr,
                       network,
                       pdu,)
-import json
-import os
-import signal
 
 
 class _ofdm_adaptive_sim(gr.top_block):

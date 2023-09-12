@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
-import monitoring
+import app.monitoring
 import pymongo
 
 
@@ -16,4 +16,4 @@ if __name__ == "__main__":
     db_client = pymongo.MongoClient(args.db)
     db = db_client["probe_data"]
 
-    monitoring.start_collect(args.probe, db, args.collection)
+    app.monitoring.start_collect(args.probe, db, args.collection)
