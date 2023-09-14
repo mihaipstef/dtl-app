@@ -161,7 +161,7 @@ class ofdm_adaptive_sim_tun(_ofdm_adaptive_sim):
     def __init__(self, config_dict, run_config_file):
         super().__init__(config_dict, run_config_file)
         self.input = testbed_io.tun_in("tun0", 500, 128)
-        self.output = testbed_io.tun_out("tun1", 500, self.rx.packet_length_tag_key)
+        self.output = testbed_io.tun_out("tun1", 500, self.rx.direct_rx.packet_length_tag_key)
 
 
     def wire_it(self):
