@@ -7,7 +7,7 @@ from gnuradio import (gr,
 
 class pluto_in(gr.hier_block2):
 
-    def __init__(self, uri, sample_rate, carrier, len_key, gain, buffer_size):
+    def __init__(self, uri, sample_rate, carrier, len_key, buffer_size, gain=None):
         gr.hier_block2.__init__(self, "pluto_in",
                                 gr.io_signature(0, 0, 0),
                                 gr.io_signature(1, 1, gr.sizeof_gr_complex))
@@ -15,8 +15,11 @@ class pluto_in(gr.hier_block2):
         self.pluto_src.set_len_tag_key(len_key)
         self.pluto_src.set_frequency(carrier)
         self.pluto_src.set_samplerate(sample_rate)
-        self.pluto_src.set_gain_mode(0, 'manual')
-        self.pluto_src.set_gain(0, gain)
+        if gain is None:
+            self.pluto_src.set_gain_mode(0, 'slow_attack')
+        else:
+            self.pluto_src.set_gain_mode(0, 'manual')
+            self.pluto_src.set_gain(0, gain)
         self.pluto_src.set_quadrature(True)
         self.pluto_src.set_rfdc(True)
         self.pluto_src.set_bbdc(True)
@@ -29,7 +32,7 @@ class pluto_in(gr.hier_block2):
 
 class pluto_out(gr.hier_block2):
 
-    def __init__(self, uri, sample_rate, carrier, len_key, att, buffer_size):
+    def __init__(self, uri, sample_rate, carrier, len_key, buffer_size, att):
         gr.hier_block2.__init__(self, "pluto_out",
                                 gr.io_signature(1, 1, gr.sizeof_gr_complex),
                                 gr.io_signature(0, 0, 0))
