@@ -7,7 +7,7 @@ from gnuradio import (gr,
 
 class pluto_in(gr.hier_block2):
 
-    def __init__(self, uri, sample_rate, carrier, len_key, buffer_size):
+    def __init__(self, uri, sample_rate, carrier, len_key, gain, buffer_size):
         gr.hier_block2.__init__(self, "pluto_in",
                                 gr.io_signature(0, 0, 0),
                                 gr.io_signature(1, 1, gr.sizeof_gr_complex))
@@ -16,7 +16,7 @@ class pluto_in(gr.hier_block2):
         self.pluto_src.set_frequency(carrier)
         self.pluto_src.set_samplerate(sample_rate)
         self.pluto_src.set_gain_mode(0, 'manual')
-        self.pluto_src.set_gain(0, 10)
+        self.pluto_src.set_gain(0, gain)
         self.pluto_src.set_quadrature(True)
         self.pluto_src.set_rfdc(True)
         self.pluto_src.set_bbdc(True)
@@ -29,7 +29,7 @@ class pluto_in(gr.hier_block2):
 
 class pluto_out(gr.hier_block2):
 
-    def __init__(self, uri, sample_rate, carrier, len_key, buffer_size):
+    def __init__(self, uri, sample_rate, carrier, len_key, att, buffer_size):
         gr.hier_block2.__init__(self, "pluto_out",
                                 gr.io_signature(1, 1, gr.sizeof_gr_complex),
                                 gr.io_signature(0, 0, 0))
@@ -38,7 +38,7 @@ class pluto_out(gr.hier_block2):
         self.pluto_sink.set_bandwidth(sample_rate)
         self.pluto_sink.set_frequency(carrier)
         self.pluto_sink.set_samplerate(sample_rate)
-        self.pluto_sink.set_attenuation(0, 20.0)
+        self.pluto_sink.set_attenuation(0, att)
         self.pluto_sink.set_filter_params('Auto', '', 0, 0)
         self.connect(self, self.pluto_sink)
 
