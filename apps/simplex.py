@@ -24,16 +24,16 @@ class ofdm_adaptive_simplex_tx(app.dtl_app):
         self.feedback_carrier = config_dict.get("feedback_carrier", 850000000)
         self.data_bytes = config_dict.get("data_bytes", None)
         self.direct_tun = config_dict.get("direct_tun", "tun0")
-        self.direct_uri = config_dict.get("direct_uri", "ip:192.168.2.1")
+        self.direct_uri = config_dict.get("direct_uri", "ip:192.168.3.1")
         self.feedback_uri = config_dict.get("feedback_uri", "ip:192.168.3.1")
         # Use TX default sample rate if not configured
         self.sample_rate = config_dict.get("sample_rate", dtl.ofdm_adaptive_config.ofdm_adaptive_tx_config.sample_rate)
         self.len_key = "len_key"
 
 
-        self.data_input = testbed_io.tun_in("tun0", 500, 128)
-        self.data_output = testbed_io.pluto_out('ip:192.168.2.1' if 'ip:192.168.2.1' else iio.get_pluto_uri(), self.sample_rate, self.direct_carrier, self.len_key, 32768)
-        self.feedback_in = testbed_io.pluto_in('ip:192.168.2.1' if 'ip:192.168.2.1' else iio.get_pluto_uri(), self.sample_rate, self.feedback_carrier, self.len_key, 32768)
+        self.data_input = testbed_io.tun_in(self.direct_tun, 500, 128)
+        self.data_output = testbed_io.pluto_out(self.direct_uri, self.sample_rate, self.direct_carrier, self.len_key, 32768)
+        self.feedback_in = testbed_io.pluto_in(self.feedback_uri, self.sample_rate, self.feedback_carrier, self.len_key, 32768)
 
         self.tx = dtl.ofdm_adaptive_tx.from_parameters(
             config_dict=config_dict["ofdm_config"],
@@ -42,7 +42,7 @@ class ofdm_adaptive_simplex_tx(app.dtl_app):
             sample_rate=self.sample_rate,
             packet_length_tag_key=self.len_key,
         )
-        print(f"sample_rate={self.tx.sample_rate}, direct_carrier={self.direct_carrier}")
+        print(f"sample_rate={self.tx.direct_tx.sample_rate}, direct_carrier={self.direct_carrier}")
 
         monitor_address = config_dict.get(
             "monitor_probe", "tcp://127.0.0.1:5556")
@@ -91,11 +91,11 @@ class ofdm_adaptive_simplex_rx(app.dtl_app):
             self, config_dict, run_config_file)
 
         self.run_config_file = run_config_file
-        self.direct_carrier = config_dict.get("direct_carrier", 2100000000)
+        self.direct_carrier = config_dict.get("direct_carrier", 2400000000)
         self.feedback_carrier = config_dict.get("feedback_carrier", 850000000)
         self.direct_tun = config_dict.get("direct_tun", "tun1")
         self.direct_uri = config_dict.get("direct_uri", "ip:192.168.2.1")
-        self.feedback_uri = config_dict.get("feedback_uri", "ip:192.168.3.1")
+        self.feedback_uri = config_dict.get("feedback_uri", "ip:192.168.2.1")
 
         # Use TX default sample rate if not configured
         self.samp_rate = config_dict.get("sample_rate", dtl.ofdm_adaptive_config.ofdm_adaptive_tx_config.sample_rate)
@@ -109,8 +109,8 @@ class ofdm_adaptive_simplex_rx(app.dtl_app):
         )
 
         self.data_out = testbed_io.tun_out(self.direct_tun, 500, self.len_key)
-        self.data_in = testbed_io.pluto_in(self.direct_uri, self.sample_rate, self.direct_carrier, self.len_key, 32768)
-        self.feedback_out = testbed_io.pluto_in(self.feedback_uri, self.sample_rate, self.feedback_carrier, self.len_key, 32768)
+        self.data_in = testbed_io.pluto_in(self.direct_uri, self.samp_rate, self.direct_carrier, self.len_key, 32768)
+        self.feedback_out = testbed_io.pluto_out(self.feedback_uri, self.samp_rate, self.feedback_carrier, self.len_key, 32768)
 
         monitor_address = config_dict.get(
             "monitor_probe", "tcp://127.0.0.1:5555")
@@ -122,8 +122,7 @@ class ofdm_adaptive_simplex_rx(app.dtl_app):
     def wire_it(self):
 
         # Direct path
-        self.connect(self.data_in, (self.rx, 0), self.to_pdu)
-        self.msg_connect(self.to_pdu, "pdus", self.tun1, "pdus")
+        self.connect(self.data_in, (self.rx, 0), self.data_out)
 
         # Feedback path
         self.connect(

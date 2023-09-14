@@ -9,8 +9,7 @@ class pluto_in(gr.hier_block2):
 
     def __init__(self, uri, sample_rate, carrier, len_key, buffer_size):
         gr.hier_block2.__init__(self, "pluto_in",
-                                gr.io_signature.makev(
-                                    0, 0, []),
+                                gr.io_signature(0, 0, 0),
                                 gr.io_signature(1, 1, gr.sizeof_gr_complex))
         self.pluto_src = iio.fmcomms2_source_fc32(uri, [True, True], buffer_size)
         self.pluto_src.set_len_tag_key(len_key)
@@ -22,6 +21,7 @@ class pluto_in(gr.hier_block2):
         self.pluto_src.set_rfdc(True)
         self.pluto_src.set_bbdc(True)
         self.pluto_src.set_filter_params('Auto', '', 0, 0)
+        self.connect(self.pluto_src, self)
 
     def get(self):
         return self.pluto_src
@@ -40,6 +40,7 @@ class pluto_out(gr.hier_block2):
         self.pluto_sink.set_samplerate(sample_rate)
         self.pluto_sink.set_attenuation(0, 20.0)
         self.pluto_sink.set_filter_params('Auto', '', 0, 0)
+        self.connect(self, self.pluto_sink)
 
     def get(self):
         return self.pluto_sink
