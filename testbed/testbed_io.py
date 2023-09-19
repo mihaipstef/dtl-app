@@ -77,3 +77,25 @@ class tun_out(gr.hier_block2):
 
     def msg_out(self):
         return self.tun
+
+
+class tun_inout(gr.hier_block2):
+
+    def __init__(self, iface, mtu, queue_size, len_key):
+        gr.hier_block2.__init__(self, "tun_inout",
+                                gr.io_signature(1, 1, gr.sizeof_char),
+                                gr.io_signature(1, 1, gr.sizeof_char))
+        self.tun = network.tuntap_pdu(iface, mtu, True)
+
+        # IN
+        self.to_stream = pdu.pdu_to_stream_b(pdu.EARLY_BURST_APPEND, queue_size)
+        self.msg_connect(self.tun, "pdus", self.to_stream, "pdus")
+        self.connect(self.to_stream, self)
+
+        # OUT
+        self.to_pdu = pdu.tagged_stream_to_pdu(gr.types.byte_t, len_key)
+        self.msg_connect( self.to_pdu, "pdus", self.tun, "pdus")
+        self.connect(self, self.to_pdu)
+
+    def msg_in(self):
+        return self.tun
