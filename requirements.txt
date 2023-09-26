@@ -1,3 +1,6 @@
 pymongo
 pyzmq
 scapy
+pyroute2
+python-iptables
+ipcalc
