@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+
+import argparse
+try:
+    from testbed import env
+except:
+    import os
+    import sys
+    dirname, filename = os.path.split(os.path.abspath(__file__))
+    sys.path.append(os.path.join(dirname, ".."))
+    from testbed import env
+
+
+main_parser = argparse.ArgumentParser(prog="dtl_env", description="DTL environment management tool")
+
+subparsers = main_parser.add_subparsers(help="commands", dest="command")
+
+# Env - create
+env_create_parser = subparsers.add_parser("create", help="Create a DTL environment")
+env_create_parser.add_argument("name", help="Name of the DTL environment")
+env_create_parser.add_argument("--config", help="Config of the DTL environment")
+# Env - delete
+env_delete_parser = subparsers.add_parser("delete", help="Delete a DTL environment")
+env_delete_parser.add_argument("name", help="Name of the DTL environment")
+# Env - exec
+env_exec_parser = subparsers.add_parser("run", help="Run an app in DTL environment")
+env_exec_parser.add_argument("--env", help="Name of the DTL environment")
+env_exec_parser.add_argument("--config", help="Config of the DTL application")
+env_exec_parser.add_argument("app", help="Name of the DTL application")
+
+main_args = main_parser.parse_args()
+command_handlers = {
+        "create": env.create,
+        "delete": env.delete,
+}
+
+cmd = main_args.__dict__.get("command", None)
+args = {k:v for k,v in main_args.__dict__.items() if k != "command"}
+
+handler = command_handlers.get(cmd, None)
+
+if handler is None:
+    main_parser.print_help()
+else:
+    handler(**args)

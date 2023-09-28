@@ -3,6 +3,7 @@ import iptc
 from pyroute2 import (
     IPRoute,
     NetNS,
+    netns,
 )
 import os
 
@@ -94,29 +95,44 @@ def _setup_bridge(ip):
     return links[0]
 
 
-def _setup_world_connection(ns, addr):
+def _get_available_address(ip):
+    def __is_weth(x):
+        return x is not None and x.endswith("-weth")
+    used_addresses = []
+    for ns_name in netns.listnetns():
+        ns = NetNS(ns_name, flags=os.O_RDONLY)
+        used_addresses += [ _get_attribute(a["attrs"], "IFA_ADDRESS")
+            for a in ns.get_addr(match=lambda x: __is_weth(_get_attribute(x["attrs"], "IFA_LABEL")))]
+    print(used_addresses)
+    used_addresses = set(used_addresses)
+    available_addr = ipcalc.IP(DTL_BR_GW) + 1
+    for _ in range(253):
+        if (a:=str(available_addr)) not in used_addresses:
+            return a
+        available_addr = available_addr + 1
+    return None
+
+
+def _setup_world_connection(ns):
     ip = IPRoute()
+    if (addr:=_get_available_address(ip)) is not None:
+        br_idx = _setup_bridge(ip)
 
-    br_idx = _setup_bridge(ip)
+        weth_name = f"{ns.netns}-weth"
+        wbr_name = f"{ns.netns}-wpeer"
 
-    weth_name = f"{ns.netns}-weth"
-    wbr_name = f"{ns.netns}-wpeer"
+        ip.link("add", ifname=wbr_name, kind="veth", peer={"ifname": weth_name, "net_ns_fd": ns.netns})
 
-    ip.link("add", ifname=wbr_name, kind="veth", peer={"ifname": weth_name, "net_ns_fd": ns.netns})
+        weth_idx = ns.link_lookup(ifname=weth_name)[0]
+        ns.link("set", index=weth_idx)
+        ns.addr("add", index=weth_idx, address=addr, mask=24)
+        ns.link("set", index=weth_idx, state="up")
 
-    weth_idx = ns.link_lookup(ifname=weth_name)[0]
-    ns.link("set", index=weth_idx)
-    ns.addr("add", index=weth_idx, address=addr)
-    ns.link("set", index=weth_idx, state="up")
+        wbr_idx = ip.link_lookup(ifname=wbr_name)[0]
+        ip.link("set", index=wbr_idx, master=br_idx)
+        ip.link("set", index=wbr_idx, state="up")
 
-    wbr_idx = ip.link_lookup(ifname=wbr_name)[0]
-    ip.link("set", index=wbr_idx, master=br_idx)
-    ip.link("set", index=wbr_idx, state="up")
-
-    ns.route("add", gateway=DTL_BR_GW)
-
-    ns.link("set", index=ns.link_lookup(ifname="")[0], state="up")
-
+        ns.route("add", gateway=DTL_BR_GW)
 
 
 def _create_sim_env(env_name, env_config=None):
@@ -132,14 +148,19 @@ def _create_sim_env(env_name, env_config=None):
     _setup_local_route(ns, "tun1")
     # setup p2p routes
     _setup_p2p_routes(ns, "tun0", "tun1")
+    # Up loopback interface
+    ns.link("set", index=ns.link_lookup(ifname="lo")[0], state="up")
     return ns
 
 
-def create(name, env_config):
+def create(name, config):
     env = _create_sim_env(name)
-    _setup_world_connection(env, env_config.get("ip", "192.168.0.10/24"))
+    _setup_world_connection(env)
 
 
-def exec(name, dtl_app, app_config):
+def delete(name):
+    netns.remove(netns=name)
+
+
+def run(name, dtl_app, app_config):
     pass
-
