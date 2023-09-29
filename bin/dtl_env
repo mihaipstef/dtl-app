@@ -24,7 +24,7 @@ env_delete_parser = subparsers.add_parser("delete", help="Delete a DTL environme
 env_delete_parser.add_argument("name", help="Name of the DTL environment")
 # Env - exec
 env_exec_parser = subparsers.add_parser("run", help="Run an app in DTL environment")
-env_exec_parser.add_argument("--env", help="Name of the DTL environment")
+env_exec_parser.add_argument("--name", help="Name of the DTL environment")
 env_exec_parser.add_argument("--config", help="Config of the DTL application")
 env_exec_parser.add_argument("app", help="Name of the DTL application")
 
@@ -32,6 +32,7 @@ main_args = main_parser.parse_args()
 command_handlers = {
         "create": env.create,
         "delete": env.delete,
+        "run": env.run,
 }
 
 cmd = main_args.__dict__.get("command", None)
@@ -42,4 +43,7 @@ handler = command_handlers.get(cmd, None)
 if handler is None:
     main_parser.print_help()
 else:
-    handler(**args)
+    try:
+        handler(**args)
+    except Exception as e:
+        print(str(e))

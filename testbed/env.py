@@ -1,166 +1,86 @@
-import ipcalc
-import iptc
-from pyroute2 import (
-    IPRoute,
-    NetNS,
-    netns,
-)
+import json
 import os
+from pathlib import Path
+import shutil
+from testbed import (ns, run as run_app)
 
 
-LOCAL_ROUTING_TABLE = 255
-DEFAULT_ROUTING_TABLE = 254
-INCOMING_LOCAL_TRAFFIC_TABLE = 19
-DTL_BR_NAME = "dtl-br"
-DTL_BR_SUBNET = "192.168.0.0/24"
-DTL_BR_GW = str(ipcalc.Network("192.168.0.0/24") + 1)
+DTL_ENV_FOLDER = ".dtl_envs"
 
 
-def _create_tun(ns, if_name, ip_addr, mask):
-    links = ns.link_lookup(ifname=if_name)
-    if len(links) > 0:
-        # Link already exists
-        return
-    else:
-        ns.link("add", ifname=if_name, kind="tuntap", mode="tun")
-        tun_idx = ns.link_lookup(ifname=if_name)[0]
-        tun_addr = ns.get_addr(index=tun_idx)
-        assert (len(tun_addr) <= 1)
-        if len(tun_addr) == 0:
-            ns.addr("add", index=tun_idx, address=ip_addr, mask=mask)
-        ns.link("set", index=tun_idx, state="up")
+def _env_path(env_name):
+    relative_env_path = f"{DTL_ENV_FOLDER}/{env_name}"
+    if (sudo_user:=os.getenv("SUDO_USER", None)):
+        home_path = os.path.expanduser(f"~{sudo_user}")
+        return f"{home_path}/{relative_env_path}"
+    return f"{Path.home()}/{relative_env_path}"
 
 
-def _get_attribute(attrs, k):
-    return {k: v for (k, v) in attrs}.get(k, None)
+def _env_logs(env_name):
+    return f"{_env_path(env_name)}/logs"
 
 
-def _setup_local_route(ns, if_name):
-    idx = ns.link_lookup(ifname=if_name)[0]
-    if_addr = _get_attribute(ns.get_addr(index=idx)[0]["attrs"], "IFA_ADDRESS")
-    rules = ns.get_rules(
-        match=lambda x: x["table"] == INCOMING_LOCAL_TRAFFIC_TABLE and if_name == _get_attribute(
-            x["attrs"], "FRA_IIFNAME"))
-    if len(rules) == 0:
-        ns.route("add", dst=f"{if_addr}", type="unicast", oif=idx, table=INCOMING_LOCAL_TRAFFIC_TABLE)
-        ns.rule("add", iifname=if_name, table=INCOMING_LOCAL_TRAFFIC_TABLE)
+def _create_env_folder(env_name, env_config):
+    env_path = _env_path(env_name)
+    base_path = os.path.dirname(env_path)
+    if not os.path.isdir(base_path):
+        os.mkdir(base_path)
+    os.mkdir(env_path)
+    with open(f"{env_path}/config.json", "w") as f:
+        json.dump(env_config, f)
+    os.mkdir(f"{env_path}/logs")
 
 
-def _setup_p2p_routes(ns, if1_name, if2_name):
-    idx1 = ns.link_lookup(ifname=if1_name)[0]
-    idx2 = ns.link_lookup(ifname=if2_name)[0]
-
-    if1_addr = _get_attribute(ns.get_addr(index=idx1)[0]["attrs"], "IFA_ADDRESS")
-    routes_to_1 = ns.get_routes(
-        match=lambda x: x["table"] == DEFAULT_ROUTING_TABLE and if1_addr == _get_attribute(
-            x["attrs"], "RTA_DST"))
-    if len(routes_to_1) == 0:
-        ns.route("add", dst=f"{if1_addr}", type="unicast", oif=idx2, table=DEFAULT_ROUTING_TABLE)
-
-    if2_addr = _get_attribute(ns.get_addr(index=idx2)[0]["attrs"], "IFA_ADDRESS")
-    routes_to_2 = ns.get_routes(
-        match=lambda x: x["table"] == DEFAULT_ROUTING_TABLE and if2_addr == _get_attribute(
-            x["attrs"], "RTA_DST"))
-    if len(routes_to_2) == 0:
-        ns.route("add", dst=f"{if2_addr}", type="unicast", oif=idx1, table=DEFAULT_ROUTING_TABLE)
-
-
-def _find_gw_route(ip):
-    routes = ip.get_routes(match=lambda x: x["table"] == DEFAULT_ROUTING_TABLE and None != _get_attribute(x["attrs"], "RTA_GATEWAY"))
-    if len(routes) > 0:
-        gw_idx = _get_attribute(routes[0]["attrs"], "RTA_OIF")
-        gw_iname = _get_attribute(ip.get_links(gw_idx)[0]["attrs"], "IFLA_IFNAME")
-        return gw_iname
-    return None
-
-
-def _setup_bridge(ip):
-    # look for bridge
-    links = ip.link_lookup(ifname=DTL_BR_NAME)
-    if len(links) == 0:
-        ip.link("add", ifname=DTL_BR_NAME, kind="bridge")
-        br_idx = ip.link_lookup(ifname="dtl-br")[0]
-        ip.addr("add", index=br_idx, address=DTL_BR_GW)
-        ip.link("set", index=br_idx, state="up")
-        nat_chain = iptc.Chain(iptc.Table(iptc.Table.NAT), "POSTROUTING")
-        for r in nat_chain.rules:
-            if DTL_BR_SUBNET.split('/')[0] == r.src.split('/')[0]:
-                nat_chain.delete_rule(r)
-        rule = iptc.Rule(chain=nat_chain)
-        rule.target = iptc.Target(rule, "MASQUERADE")
-        rule.src = DTL_BR_SUBNET
-        rule.out_interface = f"!{DTL_BR_NAME}"
-        nat_chain.insert_rule(rule)
-        return br_idx
-    return links[0]
-
-
-def _get_available_address(ip):
-    def __is_weth(x):
-        return x is not None and x.endswith("-weth")
-    used_addresses = []
-    for ns_name in netns.listnetns():
-        ns = NetNS(ns_name, flags=os.O_RDONLY)
-        used_addresses += [ _get_attribute(a["attrs"], "IFA_ADDRESS")
-            for a in ns.get_addr(match=lambda x: __is_weth(_get_attribute(x["attrs"], "IFA_LABEL")))]
-    print(used_addresses)
-    used_addresses = set(used_addresses)
-    available_addr = ipcalc.IP(DTL_BR_GW) + 1
-    for _ in range(253):
-        if (a:=str(available_addr)) not in used_addresses:
-            return a
-        available_addr = available_addr + 1
-    return None
-
-
-def _setup_world_connection(ns):
-    ip = IPRoute()
-    if (addr:=_get_available_address(ip)) is not None:
-        br_idx = _setup_bridge(ip)
-
-        weth_name = f"{ns.netns}-weth"
-        wbr_name = f"{ns.netns}-wpeer"
-
-        ip.link("add", ifname=wbr_name, kind="veth", peer={"ifname": weth_name, "net_ns_fd": ns.netns})
-
-        weth_idx = ns.link_lookup(ifname=weth_name)[0]
-        ns.link("set", index=weth_idx)
-        ns.addr("add", index=weth_idx, address=addr, mask=24)
-        ns.link("set", index=weth_idx, state="up")
-
-        wbr_idx = ip.link_lookup(ifname=wbr_name)[0]
-        ip.link("set", index=wbr_idx, master=br_idx)
-        ip.link("set", index=wbr_idx, state="up")
-
-        ns.route("add", gateway=DTL_BR_GW)
-
-
-def _create_sim_env(env_name, env_config=None):
-    ns = NetNS(env_name, flags=os.O_CREAT)
-    # create tun0 interface
-    _create_tun(ns, "tun0", "2.2.2.2", 32)
-    # create tun1 interface
-    _create_tun(ns, "tun1", "3.3.3.3", 32)
-    # delete local routes created by default
-    ns.flush_routes(table=LOCAL_ROUTING_TABLE)
-    # setup routes for accepting local incoming traffic
-    _setup_local_route(ns, "tun0")
-    _setup_local_route(ns, "tun1")
-    # setup p2p routes
-    _setup_p2p_routes(ns, "tun0", "tun1")
-    # Up loopback interface
-    ns.link("set", index=ns.link_lookup(ifname="lo")[0], state="up")
-    return ns
+def _recursive_chown_if_sudo(name):
+    if (sudo_user:=os.getenv("SUDO_USER", None)):
+        env_path = _env_path(name)
+        for dirpath, dirnames, filenames in os.walk(env_path):
+            shutil.chown(dirpath, sudo_user, sudo_user)
+            for filename in filenames:
+                shutil.chown(os.path.join(dirpath, filename), sudo_user, sudo_user)
 
 
 def create(name, config):
-    env = _create_sim_env(name)
-    _setup_world_connection(env)
+    if os.path.isdir(_env_path(name)):
+        raise Exception(f"Environment {name} already exists. Use start command to activate it.")
+    else:
+        try:
+            _create_env_folder(name, config)
+            ns_env = ns.create_sim_env(name, config)
+        finally:
+            _recursive_chown_if_sudo(name)
+
+
+def start(name):
+    env_path = _env_path(name)
+    if not os.path.isdir(env_path):
+        raise Exception(f"Environment {name} doesn't exist.")
+    else:
+        with open(f"{env_path}/config.json", "r") as f:
+            config = json.load(f)
+            try:
+                ns_env = ns.create_sim_env(name, config)
+            finally:
+                _recursive_chown_if_sudo(name)
+
+
+def stop(name):
+    ns.delete_env(name)
 
 
 def delete(name):
-    netns.remove(netns=name)
+    env_path = _env_path(name)
+    if not os.path.isdir(env_path):
+        raise Exception(f"Environment {name} doesn't exist.")
+    else:
+        stop(name)
+        shutil.rmtree(env_path)
 
 
-def run(name, dtl_app, app_config):
-    pass
+def run(name, app, config):
+    ns.set_env_for_proccess(name)
+    try:
+        run_app.run(app, config, _env_logs(name))
+    finally:
+        _recursive_chown_if_sudo(name)
+
