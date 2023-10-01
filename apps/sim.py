@@ -1,7 +1,3 @@
-from testbed import (
-    app,
-    testbed_io,
-)
 from gnuradio import (analog,
                       blocks,
                       channels,
@@ -9,7 +5,11 @@ from gnuradio import (analog,
                       gr,
                       network,
                       pdu,)
-
+import os
+from testbed import (
+    app,
+    testbed_io,
+)
 
 class _ofdm_adaptive_sim(app.dtl_app):
 
@@ -24,6 +24,10 @@ class _ofdm_adaptive_sim(app.dtl_app):
         gr.top_block.__init__(
             self, "OFDM Adaptive Simulator", catch_exceptions=True)
         ofdm_config = config_dict.get("ofdm_config", {})
+        config_path = os.path.dirname(run_config_file)
+        if "fec_codes" in ofdm_config and len(ofdm_config["fec_codes"]):
+            ofdm_config["fec_codes"] = [(name, f"{config_path}/{fn}")
+                                        for name, fn in ofdm_config["fec_codes"]]
         self.samp_rate = samp_rate = config_dict.get("sample_rate", 200000)
         self.n_bytes = 100
         self.direct_channel_noise_level = 0.0001
@@ -185,6 +189,10 @@ class ofdm_adaptive_full_duplex_sim(app.dtl_app):
         gr.top_block.__init__(
             self, "OFDM Adaptive Full Duplex Simulator", catch_exceptions=True)
         ofdm_config = config_dict.get("ofdm_config", {})
+        config_path = os.path.dirname(run_config_file)
+        if "fec_codes" in ofdm_config and len(ofdm_config["fec_codes"]):
+            ofdm_config["fec_codes"] = [(name, f"{config_path}/{fn}")
+                                        for name, fn in ofdm_config["fec_codes"]]
         self.samp_rate = samp_rate = config_dict.get("sample_rate", 200000)
         self.n_bytes = 100
         self.direct_channel_noise_level = 0.0001
@@ -242,7 +250,6 @@ class ofdm_adaptive_full_duplex_sim(app.dtl_app):
         self.throtle = blocks.throttle(gr.sizeof_gr_complex*1, samp_rate, True)
 
         self.msg_debug = blocks.message_debug(True)
-        print(config_dict)
         monitor_address = config_dict.get(
             "monitor_probe", "tcp://127.0.0.1:5555")
         monitor_probe_name = config_dict.get("monitor_probe_name", "probe")
@@ -281,8 +288,7 @@ class ofdm_adaptive_full_duplex_sim(app.dtl_app):
 
         # Direct path
         self.connect(self.io1, (self.modem1, 0))
-        self.connect((self.modem1, 0), self.io1)# blocks.null_sink(gr.sizeof_char))
-
+        self.connect((self.modem1, 0), self.io1)
         self.connect((self.modem2, 0), self.io2)
         self.connect(self.io2, (self.modem2, 0))
 
