@@ -1,0 +1,29 @@
+{
+    "name": "with_fec",
+    "data_bytes": 100000,
+    "skip": false,
+
+        "traffic_generator": {
+            "func": "icmp_ping",
+            "kwargs": {
+                "ping_rate": 1,
+                "size": 64,
+                "ip_addr": "3.3.3.3",
+        "verbose": true
+            }
+        },
+    "app_config": {
+        "sample_rate": 100000,
+        "ofdm_config": {
+            "mcs": [[-100000, ["bpsk", "fec_1"]],
+                    [11, ["qpsk", "fec_1"]],
+                    [22, ["psk8", "fec_1"]],
+                    [24, ["qam16", "fec_1"]]],
+            "initial_mcs_id": 1,
+            "fec_codes": [["fec_1", "n_0300_k_0152_gap_03.alist"]]
+        }
+    },
+    "live_config": {
+        "direct_channel_noise_level": 0.1
+    }
+}

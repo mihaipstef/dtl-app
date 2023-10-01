@@ -16,18 +16,13 @@ def _env_path(env_name):
     return f"{Path.home()}/{relative_env_path}"
 
 
-def _env_logs(env_name):
-    return f"{_env_path(env_name)}/logs"
-
-
 def _create_env_folder(env_name, env_config):
     env_path = _env_path(env_name)
     base_path = os.path.dirname(env_path)
     if not os.path.isdir(base_path):
         os.mkdir(base_path)
     os.mkdir(env_path)
-    with open(f"{env_path}/config.json", "w") as f:
-        json.dump(env_config, f)
+    shutil.copyfile(env_config, f"{env_path}/config.json")
     os.mkdir(f"{env_path}/logs")
 
 
@@ -38,6 +33,18 @@ def _recursive_chown_if_sudo(name):
             shutil.chown(dirpath, sudo_user, sudo_user)
             for filename in filenames:
                 shutil.chown(os.path.join(dirpath, filename), sudo_user, sudo_user)
+
+
+def load_config(env_name):
+    config_file = f"{_env_path(env_name)}/config.json"
+    with open(config_file, "r") as f:
+        content = f.read()
+        cfg = json.loads(content)
+        return cfg
+
+
+def log_path(env_name):
+    return f"{_env_path(env_name)}/logs"
 
 
 def create(name, config):
@@ -80,7 +87,7 @@ def delete(name):
 def run(name, app, config):
     ns.set_env_for_proccess(name)
     try:
-        run_app.run(app, config, _env_logs(name))
+        run_app.run(app, config, name)
     finally:
         _recursive_chown_if_sudo(name)
 

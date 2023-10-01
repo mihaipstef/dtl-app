@@ -1,4 +1,5 @@
 import datetime as dt
+from scapy.config import conf
 from scapy.layers.inet import (
     ICMP,
     IP,
@@ -11,6 +12,15 @@ from scapy.sendrecv import (
 )
 
 
+def scapy_reload(f):
+    def wrap(*args, **kwargs):
+        conf.ifaces.reload()
+        conf.route.resync()
+        f(*args, **kwargs)
+    return wrap
+
+
+@scapy_reload
 def icmp_ping(collection, ip_addr, size=64, ping_rate=1, verbose=False):
     sent = 0
     rcv = 0
@@ -33,6 +43,7 @@ def icmp_ping(collection, ip_addr, size=64, ping_rate=1, verbose=False):
             collection.insert_one({"probe_name": "icmp_ping_failure", "insert_ts": dt.datetime.utcnow(), "fail_rate": 100 * (sent - rcv)/sent})
 
 
+@scapy_reload
 def icmp_gen(collection, dst_ip_addr, size=64, ping_rate=1):
     seq = 0
     payload = "".join(["a" for _ in range(size)])
@@ -43,6 +54,7 @@ def icmp_gen(collection, dst_ip_addr, size=64, ping_rate=1):
         ans = send(packet, inter=1.0/ping_rate, verbose=0)
 
 
+@scapy_reload
 def icmp_sniff(collection, src_ip_addr, dst_iface, verbose=False):
     expected_seq = None
     lost_packets = 0

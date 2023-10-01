@@ -161,3 +161,12 @@ def set_env_for_proccess(env_name):
 
 def delete_env(name):
     netns.remove(netns=name)
+
+
+def dtl_env(env_name):
+    def dec(f):
+        def wrap(*args, **kwargs):
+            with NetNS(netns=env_name) as _:
+                f(*args, **kwargs)
+        return wrap
+    return dec

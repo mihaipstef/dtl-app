@@ -1,0 +1,4 @@
+{
+    "monitor_db": "mongodb://probe:probe@127.0.0.1:27017/probe_data?authSource=admin",
+    "monitor_probe": "tcp://127.0.0.1:5555"
+}
