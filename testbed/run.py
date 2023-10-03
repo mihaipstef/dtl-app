@@ -90,8 +90,10 @@ def run(app_name, config, env_name):
 
         try:
             app_config = cfg["app_config"]
+
             app_config["name"] = cfg["name"]
-            app_proccess = _run_in_env(env_name, _run_app, log_store_fname=log_store_fname, dtl_app=dtl_app, config=cfg, config_file=config_file)
+
+            app_proccess = _run_in_env(env_name, _run_app, log_store_fname=log_store_fname, dtl_app=dtl_app, config=app_config, config_file=config_file)
             #run_ofdm(**{"log_store_fname": log_store_fname, "dtl_app": dtl_app, "app_config": app_config, "config_file": experiments_file})
 
             traffic_generator = cfg.get("traffic_generator", None)
