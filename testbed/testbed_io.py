@@ -3,7 +3,8 @@ from gnuradio import (gr,
                       network,
                       pdu
                     )
-
+import pmt
+from testbed.wrap import D
 
 class pluto_in(gr.hier_block2):
 
@@ -49,53 +50,26 @@ class pluto_out(gr.hier_block2):
         return self.pluto_sink
 
 
-class tun_in(gr.hier_block2):
-
-    def __init__(self, iface, mtu, queue_size):
-        gr.hier_block2.__init__(self, "tun_in",
-                                gr.io_signature(0, 0, 0),
-                                gr.io_signature(1, 1, gr.sizeof_char))
-        self.tun = network.tuntap_pdu(iface, mtu, True)
-        self.to_stream = pdu.pdu_to_stream_b(pdu.EARLY_BURST_APPEND, queue_size)
-        self.msg_connect(self.tun, "pdus", self.to_stream, "pdus")
-        self.connect(self.to_stream, self)
-
-    def msg_in(self):
-        return self.tun
-
-
-class tun_out(gr.hier_block2):
-
-    def __init__(self, iface, mtu, len_key):
-        gr.hier_block2.__init__(self, "tun_out",
-                                gr.io_signature(1, 1, gr.sizeof_char),
-                                gr.io_signature(0, 0, 0),)
-        self.tun = network.tuntap_pdu(iface, mtu, True)
-        self.to_pdu = pdu.tagged_stream_to_pdu(gr.types.byte_t, len_key)
-        self.connect(self, self.to_pdu)
-        self.msg_connect(self.to_pdu, "pdus", self.tun, "pdus")
-
-    def msg_out(self):
-        return self.tun
-
-
-class tun_inout(gr.hier_block2):
+class tun_io(gr.hier_block2):
 
     def __init__(self, iface, mtu, queue_size, len_key):
-        gr.hier_block2.__init__(self, "tun_inout",
+        gr.hier_block2.__init__(self, "tun_io",
                                 gr.io_signature(1, 1, gr.sizeof_char),
                                 gr.io_signature(1, 1, gr.sizeof_char))
-        self.tun = network.tuntap_pdu(iface, mtu, True)
+
+        self.hb = D(self, self)
+        self.tun = D(self, network.tuntap_pdu, iface, mtu, True)
 
         # IN
-        self.to_stream = pdu.pdu_to_stream_b(pdu.EARLY_BURST_APPEND, queue_size)
-        self.msg_connect(self.tun, "pdus", self.to_stream, "pdus")
-        self.connect(self.to_stream, self)
+        self.to_stream = D(self, pdu.pdu_to_stream_b, pdu.EARLY_BURST_APPEND, queue_size)
+        self.tun.pdus >> self.to_stream.pdus
+        self.to_stream >> self.hb
 
         # OUT
-        self.to_pdu = pdu.tagged_stream_to_pdu(gr.types.byte_t, len_key)
-        self.msg_connect( self.to_pdu, "pdus", self.tun, "pdus")
-        self.connect(self, self.to_pdu)
+        self.to_pdu = D(self, pdu.tagged_stream_to_pdu, gr.types.byte_t, len_key)
+        self.to_pdu.pdus >> self.tun.pdus
+        self.hb >> self.to_pdu
+
 
     def msg_in(self):
         return self.tun

@@ -1,5 +1,7 @@
+import inspect
 import enum
 import pmt
+import typing as t
 
 
 class PortDir(enum.Enum):
@@ -12,20 +14,21 @@ class PortType(enum.Enum):
     STREAM = 1
 
 
-class HierPort(object):
-    wrapped = None
-    id = None
-    owner = None
-
-    def __init__(self, wrapped, id, owner):
-        self.id = id
-        self.wrapped = wrapped
-        self.owner = owner
-
-
 class Port(object):
 
-    def __init__(self, id, tb, owner, wrapped, dir, t, sz = None):
+    id = None
+    owner = None
+    wrapped = None
+
+    def __init__(self,
+                 id: int|str,
+                 tb: t.Any,
+                 owner: t.Any,
+                 wrapped: t.Any,
+                 dir: t.Optional[PortDir],
+                 t: t.Optional[PortType],
+                 sz: t.Optional[int] = None):
+
         self.id = id
         self.dir = dir
         self.t = t
@@ -47,7 +50,7 @@ class Port(object):
             rp = rho
         else:
             # Assume hier_block
-            rp = HierPort(rho, 0, rho)
+            rp = HierPort(id, rho, rho)
 
         if self.t == PortType.MSG:
             self.tb.msg_connect(self.wrapped, self.id, rp.wrapped, rp.id)
@@ -58,12 +61,26 @@ class Port(object):
         return rho
 
 
+class HierPort(Port):
+    def __init__(self, id, owner, wrapped):
+        super().__init__(id, owner, owner, wrapped, None, None, None)
+
+
+
 class D(object):
 
     exclude = set(["__class__"])
 
-    def __init__(self, tb, block_cls, *args, **kwargs):
-        self.wrapped = block_cls(*args, **kwargs)
+    wrapped: t.Any = None
+    inp: t.List[Port] = []
+    outp: t.List[Port] = []
+
+    def __init__(self, tb: t.Any, w: t.Any, *args, **kwargs):
+        if inspect.isclass(w):
+            self.wrapped = w(*args, **kwargs)
+        else:
+            self.wrapped = w
+
         self.inp = []
         self.outp = []
 
@@ -72,9 +89,10 @@ class D(object):
                 return getattr(self.wrapped, name)
             return proxy
 
-        for name in dir(block_cls):
+        for name in dir(self.wrapped):
             if name not in self.exclude:
-                setattr(self, name, make_proxy(name))
+                if (a:=callable(getattr(self.wrapped, name))):
+                    setattr(self, name, a)
 
         if ((ports_in:=getattr(self.wrapped, "message_ports_in", None))
             and ports_in is not None and callable(ports_in)):
@@ -102,18 +120,20 @@ class D(object):
 
 
     def __rshift__(self, rho):
+        lp = self.outp[0]
         if type(rho) is D:
-            rp = self.inp[0]
-            assert(self.t == PortType.STREAM)
+            rp = rho.inp[0]
+            assert(lp.t == PortType.STREAM)
             assert(rp.t == PortType.STREAM)
-            assert(rp.sz == self.sz)
-            assert(rp.dir != self.dir)
+            assert(rp.sz == lp.sz)
+            assert(rp.dir != lp.dir)
         elif type(rho) is Port:
             rp = rho
+            assert(rp.t == lp.t)
+            assert(rp.sz == lp.sz)
+            assert(rp.dir != lp.dir)
         else:
             # Assume hier_block
             rp = rho
-        print(self.outp[0].__dict__)
-        lp = self.outp[0]
         lp >> rp
         return rho
