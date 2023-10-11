@@ -79,7 +79,6 @@ class _ofdm_adaptive_sim(app.dtl_app):
         self.throtle = blocks.throttle(gr.sizeof_gr_complex*1, samp_rate, True)
 
         self.msg_debug = blocks.message_debug(True)
-        print(config_dict)
         monitor_address = config_dict.get(
             "monitor_probe", "tcp://127.0.0.1:5555")
         monitor_probe_name = config_dict.get("monitor_probe_name", "probe")
@@ -166,7 +165,6 @@ class ofdm_adaptive_sim_tun(_ofdm_adaptive_sim):
         self.input = testbed_io.tun_in("tun0", 500, 128)
         self.output = testbed_io.tun_out("tun1", 500, self.rx.direct_rx.packet_length_tag_key)
 
-
     def wire_it(self):
         super().wire_it()
 
@@ -214,8 +212,8 @@ class ofdm_adaptive_full_duplex_sim(app.dtl_app):
         # Blocks
         ##################################################
 
-        self.io1 = testbed_io.tun_inout("tun0", 500, 128, self.len_key)
-        self.io2 = testbed_io.tun_inout("tun1", 500, 128, self.len_key)
+        self.io1 = testbed_io.tun_io("tun0", 500, 128, self.len_key)
+        self.io2 = testbed_io.tun_io("tun1", 500, 128, self.len_key)
 
         self.modem1 = dtl.ofdm_adaptive_full_duplex.from_parameters(
             config_dict=ofdm_config,
