@@ -35,6 +35,13 @@ def _recursive_chown_if_sudo(name):
                 shutil.chown(os.path.join(dirpath, filename), sudo_user, sudo_user)
 
 
+_env_create = {
+    "sim": {
+        "tap": ns.create_sim_tap_env,
+        "tun": ns.create_sim_tun_env,
+    }
+}
+
 def load_config(env_name):
     config_file = f"{_env_path(env_name)}/config.json"
     with open(config_file, "r") as f:
@@ -48,12 +55,18 @@ def log_path(env_name):
 
 
 def create(name, config):
-    if os.path.isdir(_env_path(name)):
+    env_path = _env_path(name)
+    if os.path.isdir(env_path):
         raise Exception(f"Environment {name} already exists. Use start command to activate it.")
     else:
         try:
             _create_env_folder(name, config)
-            ns_env = ns.create_sim_env(name, config)
+            with open(f"{env_path}/config.json", "r") as f:
+                config_json = json.load(f)
+                try:
+                    _env_create[config_json["type"]][config_json["mode"]](name, config_json)
+                except:
+                    raise Exception("Something is wrong with env config!")
         finally:
             _recursive_chown_if_sudo(name)
 
@@ -66,7 +79,7 @@ def start(name):
         with open(f"{env_path}/config.json", "r") as f:
             config = json.load(f)
             try:
-                ns_env = ns.create_sim_env(name, config)
+                _env_create[config["type"]][config["mode"]](name, config)
             finally:
                 _recursive_chown_if_sudo(name)
 
