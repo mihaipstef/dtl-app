@@ -1,9 +1,10 @@
-from gnuradio import (gr,
+from gnuradio import (dtl,
+                      gr,
                       iio,
                       network,
                       pdu
                     )
-import pmt
+from testbed.ns import get_mac_addr
 from testbed.wrap import D
 
 class pluto_in(gr.hier_block2):
@@ -59,17 +60,38 @@ class tun_io(gr.hier_block2):
 
         self.hb = D(self, self)
         self.tun = D(self, network.tuntap_pdu, iface, mtu, True)
+        self.ip_validator = dtl.ip_validator("")
+        self.defrag = D(self, dtl.packet_defragmentation, self.ip_validator, len_key)
 
-        # IN
+        # IN (to TX)
         self.to_stream = D(self, pdu.pdu_to_stream_b, pdu.EARLY_BURST_APPEND, queue_size)
         self.tun.pdus >> self.to_stream.pdus
-        self.to_stream >> self.hb
+        self.to_stream  >> self.hb
 
-        # OUT
+        # OUT (from RX)
         self.to_pdu = D(self, pdu.tagged_stream_to_pdu, gr.types.byte_t, len_key)
         self.to_pdu.pdus >> self.tun.pdus
-        self.hb >> self.to_pdu
+        self.hb >> self.defrag >> self.to_pdu
 
 
-    def msg_in(self):
-        return self.tun
+class tap_io(gr.hier_block2):
+
+    def __init__(self, iface, mtu, queue_size, len_key):
+        gr.hier_block2.__init__(self, "tap_io",
+                                gr.io_signature(1, 1, gr.sizeof_char),
+                                gr.io_signature(1, 1, gr.sizeof_char))
+
+        self.hb = D(self, self)
+        self.tap = D(self, network.tuntap_pdu, iface, mtu, False)
+        self.ethernet_validator = dtl.ethernet_validator(get_mac_addr(iface))
+        self.defrag = D(self, dtl.packet_defragmentation, self.ethernet_validator, len_key)
+
+        # IN (to TX)
+        self.to_stream = D(self, pdu.pdu_to_stream_b, pdu.EARLY_BURST_APPEND, queue_size)
+        self.tap.pdus >> self.to_stream.pdus
+        self.to_stream >> self.hb
+
+        # OUT (from RX)
+        self.to_pdu = D(self, pdu.tagged_stream_to_pdu, gr.types.byte_t, len_key)
+        self.to_pdu.pdus >> self.tap.pdus
+        self.hb >> self.defrag >> self.to_pdu

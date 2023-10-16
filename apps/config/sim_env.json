@@ -1,4 +1,7 @@
 {
     "monitor_db": "mongodb://probe:probe@127.0.0.1:27017/probe_data?authSource=admin",
-    "monitor_probe": "tcp://127.0.0.1:5555"
+    "monitor_probe": "tcp://127.0.0.1:5555",
+    "type": "sim",
+    "mode": "tap",
+    "ip": ["2.2.2.2", "3.3.3.3"]
 }
