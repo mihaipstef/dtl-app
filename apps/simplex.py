@@ -47,7 +47,7 @@ class ofdm_adaptive_simplex_tx(app.dtl_app):
         monitor_address = config_dict.get(
             "monitor_probe", "tcp://127.0.0.1:5556")
         monitor_probe_name = config_dict.get("monitor_probe_name", "probe")
-        self.monitor_probe = dtl.zmq_probe(
+        self.monitor_probe = dtl.monitor_probe(
             monitor_address, monitor_probe_name, bind=True)
 
         self.clipping_control = blocks.multiply_const_cc(config_dict.get("clipping_amp", 0.02))
@@ -115,7 +115,7 @@ class ofdm_adaptive_simplex_rx(app.dtl_app):
         monitor_address = config_dict.get(
             "monitor_probe", "tcp://127.0.0.1:5555")
         monitor_probe_name = config_dict.get("monitor_probe_name", "probe")
-        self.monitor_probe = dtl.zmq_probe(
+        self.monitor_probe = dtl.monitor_probe(
             monitor_address, monitor_probe_name, bind=True)
 
 
