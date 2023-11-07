@@ -83,7 +83,7 @@ class _ofdm_adaptive_sim(app.dtl_app):
             "monitor_probe", "tcp://127.0.0.1:5555")
         monitor_probe_name = config_dict.get("monitor_probe_name", "probe")
 
-        self.monitor_probe = dtl.zmq_probe(
+        self.monitor_probe = dtl.monitor_probe(
             monitor_address, monitor_probe_name, bind=True)
 
     def get_samp_rate(self):
@@ -212,8 +212,11 @@ class ofdm_adaptive_full_duplex_sim(app.dtl_app):
         # Blocks
         ##################################################
 
-        self.io1 = testbed_io.tun_io("tun0", 500, 128, self.len_key)
-        self.io2 = testbed_io.tun_io("tun1", 500, 128, self.len_key)
+        # self.io1 = testbed_io.tap_io("tap0", 65000, 4096, self.len_key)
+        # self.io2 = testbed_io.tap_io("tap1", 65000, 4096, self.len_key)
+
+        self.io1 = testbed_io.tun_io("tun0", 65000, 2048, self.len_key)
+        self.io2 = testbed_io.tun_io("tun1", 65000, 2048, self.len_key)
 
         self.modem1 = dtl.ofdm_adaptive_full_duplex.from_parameters(
             config_dict=ofdm_config,
@@ -252,8 +255,8 @@ class ofdm_adaptive_full_duplex_sim(app.dtl_app):
             "monitor_probe", "tcp://127.0.0.1:5555")
         monitor_probe_name = config_dict.get("monitor_probe_name", "probe")
 
-        self.monitor_probe = dtl.zmq_probe(
-            monitor_address, monitor_probe_name, bind=True)
+        self.monitor_probe = dtl.monitor_probe(
+            monitor_probe_name, dtl.message_sender(monitor_address, bind=True))
 
     def get_samp_rate(self):
         return self.samp_rate

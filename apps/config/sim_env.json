@@ -1,5 +1,13 @@
 {
-    "monitor_db": "mongodb://probe:probe@127.0.0.1:27017/probe_data?authSource=admin",
+    "monitor_db": {
+        "db_type": "influx",
+        "access": {
+            "uri": "mongodb://probe:probe@<db ip address>:27017/monitor?authSource=admin"
+        },
+        "url": "<db ip address>:8086",
+        "username": "",
+        "password": ""
+    },
     "monitor_probe": "tcp://127.0.0.1:5555",
     "type": "sim",
     "mode": "tap",

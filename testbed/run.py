@@ -2,6 +2,7 @@ import argparse
 import json
 from testbed import (
     app,
+    db,
     env,
     monitoring,
     ns,
@@ -71,19 +72,18 @@ def run(app_name, config, env_name):
 
         name = cfg.get("name", uuid.uuid4())
         env_cfg = env.load_config(env_name)
-        db_url = env_cfg.get("monitor_db", None)
+        db_config = env_cfg.get("monitor_db", None)
         probe_url = env_cfg.get("monitor_probe", None)
 
         monitor_process = None
         monitor_process_pid = None
         collection_name = f"{name}_{run_timestamp}"
-        collection = None
-        if db_url:
-            db_client = pymongo.MongoClient(db_url)
-            db = db_client["probe_data"]
-            collection = db[collection_name]
+        db_access = None
+        if db_config:
+            db_access = db.db(**db_config, name=collection_name)
+            # db_access.collection.insert_one({})
             if probe_url:
-                monitor_process =  _run_in_env(env_name, monitoring.start_collect, probe_url, db, collection_name)
+                monitor_process =  _run_in_env(env_name, monitoring.start_collect, probe_url, db_access, 1000)
                 monitor_process_pid = monitor_process.pid
 
         log_store_fname = f"{logs_store}/{name}_{run_timestamp}.log"
@@ -104,7 +104,7 @@ def run(app_name, config, env_name):
                 tr_func = getattr(traffic_generators, traffic_generator["func"])
                 if tr_func:
                     args = traffic_generator["kwargs"]
-                    args["collection"] = collection
+                    args["db_access"] = db_access
                     traffic_generator_process = _run_in_env(env_name, tr_func, **args)
                     traffic_generator_pid = traffic_generator_process.pid
 
@@ -116,7 +116,7 @@ def run(app_name, config, env_name):
                 tr_func = getattr(traffic_generators, traffic_sniffer["func"])
                 if tr_func:
                     args = traffic_sniffer["kwargs"]
-                    args["collection"] = collection
+                    args["db_access"] = db_access
                     traffic_sniffer_process =  _run_in_env(env_name, tr_func, **args)
                     traffic_sniffer_pid = traffic_sniffer_process.pid
 
