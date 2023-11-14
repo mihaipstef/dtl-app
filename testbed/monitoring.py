@@ -21,27 +21,56 @@ def parse_msg(data):
     return {}
 
 
-def start_collect(probe, db_access, batch_duration):
+def start_collect_batch(probe, db_access, batch_duration):
     ctx = zmq.Context()
     socket = ctx.socket(zmq.SUB)
-    #socket.setsockopt(zmq.RCVTIMEO, int(batch_duration/10))
     socket.setsockopt_string(zmq.SUBSCRIBE, "")
-    socket.connect(probe)
-    next_batch_time = datetime.utcnow() + timedelta(milliseconds=batch_duration)
-    data = []
-    while True:
-        msg = socket.recv()
-        probe_data = parse_msg(msg)
+    socket.bind(probe)
 
-        if len(probe_data):
-            probe_data["probe_name"] = probe_data.get("probe_name", "john_doe")
-            if "time" in probe_data:
-                ts = float(probe_data["time"])
-                probe_data["time"] = datetime.utcfromtimestamp(ts/1000.0)
-                print(probe_data)
-            data.append(db_access.prepare(probe_data))
+    poller = zmq.Poller()
+    poller.register(socket, zmq.POLLIN)
+    next_batch_time = datetime.utcnow() + timedelta(milliseconds=batch_duration)
+
+    data = []
+    msg_counter = 0
+    while True:
+        events = poller.poll(int(batch_duration))
+        data = []
+        for sock, _ in events:
+            msg = sock.recv()
+            probe_data = parse_msg(msg)
+            msg_counter += 1
+            if len(probe_data):
+                probe_data["msg_counter"] = msg_counter
+                probe_data["probe_name"] = probe_data.get("probe_name", "john_doe")
+                if "time" in probe_data:
+                    ts = float(probe_data["time"])
+                    probe_data["time"] = datetime.utcfromtimestamp(ts/1000.0)
+                data.append(db_access.prepare(probe_data))
         if (now:=datetime.utcnow()) >= next_batch_time and len(data):
             db_access.write_batch(data)
             next_batch_time = now + timedelta(milliseconds=batch_duration)
             data = []
+
+
+def start_collect(probe, db_access, batch_duration):
+    ctx = zmq.Context()
+    socket = ctx.socket(zmq.SUB)
+    socket.setsockopt_string(zmq.SUBSCRIBE, "")
+    socket.bind(probe)
+
+    msg_counter = 0
+    while True:
+        msg = socket.recv()
+
+        probe_data = parse_msg(msg)
+        msg_counter += 1
+        if len(probe_data):
+            probe_data["msg_counter"] = msg_counter
+            probe_data["probe_name"] = probe_data.get("probe_name", "john_doe")
+            if "time" in probe_data:
+                ts = float(probe_data["time"])
+                probe_data["time"] = datetime.utcfromtimestamp(ts/1000.0)
+            db_access.write(probe_data)
+
 
