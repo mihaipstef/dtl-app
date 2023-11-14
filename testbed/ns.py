@@ -114,7 +114,6 @@ def _get_available_address(ip):
         ns = NetNS(ns_name, flags=os.O_RDONLY)
         used_addresses += [ _get_attribute(a["attrs"], "IFA_ADDRESS")
             for a in ns.get_addr(match=lambda x: __is_weth(_get_attribute(x["attrs"], "IFA_LABEL")))]
-    print(used_addresses)
     used_addresses = set(used_addresses)
     available_addr = ipcalc.IP(DTL_BR_GW) + 1
     for _ in range(253):
