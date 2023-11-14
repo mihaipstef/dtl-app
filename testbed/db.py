@@ -15,7 +15,9 @@ class mongo_access(db_access):
     def __init__(self, uri, name):
         self.client = pymongo.MongoClient(uri)
         self.collection = self.client["monitor"][name]
-        print(self.collection)
+        self.collection.drop()
+        self.collection = self.client["monitor"][name]
+        self.collection.create_index([ ("time", -1) ])
 
     def write(self, data):
         self.collection.insert_one(data)
