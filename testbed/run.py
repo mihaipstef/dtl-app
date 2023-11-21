@@ -76,6 +76,8 @@ def run(app_name, config, env_name):
         db_config = env_cfg.get("monitor_db", None)
         probe_url = env_cfg.get("monitor_probe", None)
 
+        show_cpu = name = cfg.get("show_cpu", False)
+
         monitor_process = None
         monitor_process_pid = None
         collection_name = f"{name}_{run_timestamp}"
@@ -83,7 +85,7 @@ def run(app_name, config, env_name):
         if db_config:
             db_access = db.db(**db_config, name=collection_name)
             if probe_url:
-                monitor_process =  _run_in_env(env_name, monitoring.start_collect_batch, probe_url, db_access, 100)
+                monitor_process =  _run_in_env(env_name, monitoring.start_collect_batch, probe_url, db_access, 1000)
                 monitor_process_pid = monitor_process.pid
 
         log_store_fname = f"{logs_store}/{name}_{run_timestamp}.log"
@@ -123,17 +125,29 @@ def run(app_name, config, env_name):
             print(
                 f"Running flow {name} PID: {app_proccess.pid}, monitoring PID: {monitor_process_pid}"
                 f", traffic gen PID: {traffic_generator_pid}, traffic collect PID: {traffic_sniffer_pid}")
+
+
             app_ps = ps.Process(app_proccess.pid)
             broker_ps = ps.Process(monitor_process.pid)
+            total_app_cpu = 0
+            total_broker_cpu = 0
+            count = 0
             while True:
-                app_cpu = app_ps.cpu_percent()
-                app_mem = app_ps.memory_info()
-                broker_cpu = broker_ps.cpu_percent()
-                broker_mem = broker_ps.memory_info()
-                print(f"app cpu: {app_cpu}, app mem={app_mem.rss}, app vmem={app_mem.vms}, broker cpu={broker_cpu},"
-                      f" broker_mem={broker_mem.rss}, broker vmem={broker_mem.vms}")
-                time.sleep(10)
-                pass
+                if show_cpu:
+                    app_cpu = app_ps.cpu_percent()
+                    app_mem = app_ps.memory_info()
+                    broker_cpu = broker_ps.cpu_percent()
+                    broker_mem = broker_ps.memory_info()
+                    if app_cpu > 0.0:
+                        total_app_cpu += app_cpu
+                        total_broker_cpu += broker_cpu
+                        count += 1
+                        print(f"app cpu={app_cpu}, app avg cpu={total_app_cpu/count}, app mem={app_mem.rss}, broker cpu={broker_cpu},"
+                            f" broker avg cpu={total_broker_cpu/count}, broker_mem={broker_mem.rss}")
+                    else:
+                        if count > 0:
+                            raise KeyboardInterrupt()
+                    time.sleep(1)
 
         except KeyboardInterrupt as _:
             if monitor_process and monitor_process.is_alive():
