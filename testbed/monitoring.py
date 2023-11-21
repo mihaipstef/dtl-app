@@ -35,7 +35,6 @@ def start_collect_batch(probe, db_access, batch_duration):
     msg_counter = 0
     while True:
         events = poller.poll(int(batch_duration))
-        data = []
         for sock, _ in events:
             msg = sock.recv()
             probe_data = parse_msg(msg)
