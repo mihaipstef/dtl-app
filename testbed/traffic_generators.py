@@ -10,15 +10,15 @@ from scapy.sendrecv import (
     send,
     sniff,
 )
-
+import time
 
 def scapy_reload(f):
     def wrap(*args, **kwargs):
         conf.ifaces.reload()
         conf.route.resync()
+        conf.use_pcap = False
         f(*args, **kwargs)
     return wrap
-
 
 @scapy_reload
 def icmp_ping(db_access, ip_addr, size=64, ping_rate=1, verbose=False):
@@ -47,11 +47,18 @@ def icmp_ping(db_access, ip_addr, size=64, ping_rate=1, verbose=False):
 def icmp_gen(db_access, dst_ip_addr, size=64, ping_rate=1):
     seq = 0
     payload = "".join(["a" for _ in range(size)])
+    iface = None
+    try:
+        iface = next(IP(dst=dst_ip_addr).__iter__()).route()[0]
+    except AttributeError:
+        iface = None
+    sock = conf.L3socket(iface=iface)
     while True:
-        ts = int(dt.datetime.utcnow().timestamp()*1000) % (2 ** 32)
+        ts = int(time.time() * 1000) % (2 ** 32)
         packet = IP(dst=dst_ip_addr, ttl=64, options=IPOption_Timestamp(flg=0, timestamp=ts)) / ICMP(seq=seq, id=100) / payload
         seq += 1
-        ans = send(packet, inter=1.0/ping_rate, verbose=0)
+        sock.send(packet)
+        time.sleep(1.0/ping_rate)
 
 
 @scapy_reload
@@ -59,12 +66,12 @@ def icmp_sniff(db_access, src_ip_addr, dst_iface, verbose=False):
     expected_seq = None
     lost_packets = 0
     packet_error_rate = 0
+    
     while True:
-        packets = sniff(iface=dst_iface, filter=f"icmp", count=1)
-        ts = int(dt.datetime.utcnow().timestamp()*1000) % (2 ** 32)
-        packet = packets[0]
+        packet = sniff(iface=dst_iface, filter=f"icmp", count=1)[0]
+        ts = packet.time * 1000  % (2 ** 32)
         latency = None
-        if ICMP not in packet or packet[ICMP].seq is None and packet[ICMP].id != 100:
+        if ICMP not in packet or packet[ICMP].seq is None or packet[ICMP].id != 100:
             continue
         if len(packet[IP].options) == 1 and getattr(packet[IP].options[0], "timestamp", None) is not None:
             sent_ts = packet[IP].options[0].timestamp
