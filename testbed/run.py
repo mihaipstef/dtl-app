@@ -1,4 +1,4 @@
-import argparse
+import datetime as dt
 import json
 from testbed import (
     app,
@@ -76,7 +76,7 @@ def run(app_name, config, env_name):
         db_config = env_cfg.get("monitor_db", None)
         probe_url = env_cfg.get("monitor_probe", None)
 
-        show_cpu = name = cfg.get("show_cpu", False)
+        show_cpu = cfg.get("show_cpu", False)
 
         monitor_process = None
         monitor_process_pid = None
@@ -142,8 +142,19 @@ def run(app_name, config, env_name):
                         total_app_cpu += app_cpu
                         total_broker_cpu += broker_cpu
                         count += 1
-                        print(f"app cpu={app_cpu}, app avg cpu={total_app_cpu/count}, app mem={app_mem.rss}, broker cpu={broker_cpu},"
-                            f" broker avg cpu={total_broker_cpu/count}, broker_mem={broker_mem.rss}")
+                        # print(f"app cpu={app_cpu}, app avg cpu={total_app_cpu/count}, app mem={app_mem.rss}, broker cpu={broker_cpu},"
+                        #     f" broker avg cpu={total_broker_cpu/count}, broker_mem={broker_mem.rss}")
+                        db_access.write(
+                            db_access.prepare(
+                                {
+                                    "time": dt.datetime.utcnow(),
+                                    "app_cpu": app_cpu,
+                                    "app_mem": app_mem.rss,
+                                    "broker_cpu": broker_cpu,
+                                    "broker_mem": broker_mem.rss,
+                                }
+                            )
+                        )
                     else:
                         if count > 0:
                             raise KeyboardInterrupt()

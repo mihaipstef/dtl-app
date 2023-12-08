@@ -3,8 +3,7 @@ from gnuradio import (analog,
                       channels,
                       dtl,
                       gr,
-                      network,
-                      pdu,)
+                      monitoring as monit,)
 import os
 from testbed import (
     app,
@@ -21,8 +20,6 @@ class _ofdm_adaptive_sim(app.dtl_app):
         return object.__new__(cls)
 
     def __init__(self, config_dict, run_config_file):
-        gr.top_block.__init__(
-            self, "OFDM Adaptive Simulator", catch_exceptions=True)
         ofdm_config = config_dict.get("ofdm_config", {})
         config_path = os.path.dirname(run_config_file)
         if "fec_codes" in ofdm_config and len(ofdm_config["fec_codes"]):
@@ -184,8 +181,7 @@ class ofdm_adaptive_full_duplex_sim(app.dtl_app):
     """
 
     def __init__(self, config_dict, run_config_file):
-        gr.top_block.__init__(
-            self, "OFDM Adaptive Full Duplex Simulator", catch_exceptions=True)
+        super().__init__(config_dict, run_config_file)
         ofdm_config = config_dict.get("ofdm_config", {})
         config_path = os.path.dirname(run_config_file)
         if "fec_codes" in ofdm_config and len(ofdm_config["fec_codes"]):
@@ -255,8 +251,8 @@ class ofdm_adaptive_full_duplex_sim(app.dtl_app):
             "monitor_probe", "tcp://127.0.0.1:5555")
         monitor_probe_name = config_dict.get("monitor_probe_name", "probe")
 
-        self.monitor_probe = dtl.monitor_probe(
-            monitor_probe_name, dtl.message_sender(monitor_address, bind=True))
+        self.monitor_probe = monit.monitor_probe(
+            monitor_probe_name, monit.message_sender(monitor_address, bind=False))
 
     def get_samp_rate(self):
         return self.samp_rate
