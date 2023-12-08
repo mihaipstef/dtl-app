@@ -90,5 +90,12 @@ def icmp_sniff(db_access, src_ip_addr, dst_iface, verbose=False):
                 f", packet_error_rate={packet_error_rate}%"
                 f", sent_ts={sent_ts}, ts={ts}")
         if db_access is not None and latency is not None:
-            db_access.write({"probe_name": "icmp_ping", "time": dt.datetime.utcnow(),
-                                   "one_way_latency": latency, "lost_packets": lost_packets, "packet_error_rate": packet_error_rate})
+            db_access.write(
+                db_access.prepare({
+                    "probe_name": "icmp_ping",
+                    "time": dt.datetime.utcnow(),
+                    "one_way_latency": latency,
+                    "lost_packets": lost_packets,
+                    "packet_error_rate": packet_error_rate,
+                })
+            )
