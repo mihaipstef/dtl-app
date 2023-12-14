@@ -8,15 +8,17 @@ class db_access(Protocol):
     def write(self, data):...
     def write_batch(self, data):...
     def prepare(self, data):...
+    def query(self, q, **kwargs):...
 
 
 class mongo_access(db_access):
 
-    def __init__(self, uri, name):
+    def __init__(self, uri, name, overwrite = True):
         self.client = pymongo.MongoClient(uri)
         self.collection = self.client["monitor"][name]
-        self.collection.drop()
-        self.collection = self.client["monitor"][name]
+        if overwrite:
+            self.collection.drop()
+            self.collection = self.client["monitor"][name]
         self.collection.create_index([ ("time", -1) ])
 
     def write(self, data):
@@ -28,6 +30,13 @@ class mongo_access(db_access):
 
     def prepare(self, data):
         return data
+
+    def query(self, q, **kwargs):
+        func_name = kwargs.get("func", "find")
+        f = getattr(self.collection, func_name, None)
+        if f is not None and callable(f):
+            return f(q)
+        return None
 
 class influx_access(db_access):
 
@@ -60,11 +69,15 @@ class influx_access(db_access):
         }
         return influx_data
 
+    def query(self, q, **kwargs):
+        raise Exception("Not implemented")
+
 
 def db(name, **kwargs) -> db_access:
     db_type = kwargs.get("db_type", None)
+    overwrite = kwargs.get("overwrite", True)
     if db_type == "mongo":
-        return mongo_access(**kwargs["access"], name=name)
+        return mongo_access(**kwargs["access"], name=name, overwrite=overwrite)
     elif db_type == "influx":
         return influx_access(kwargs["url"], kwargs["username"], kwargs["password"], name=name)
     raise Exception("Unknown database")

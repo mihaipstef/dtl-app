@@ -166,12 +166,15 @@ def get_mac_addr(ifname):
     return _get_mac_addr(IPRoute(), ifname)
 
 
-def create_sim_tun_env(env_name, env_config=None):
+def create_sim_tun_env(env_name, env_config=None, overwrite=False):
     ip_addrs = env_config.get("ip", [])
     if len(ip_addrs) < 2:
         raise Exception(f"Simulator environment require 2 IP addresses. Check config.")
 
-    ns = NetNS(env_name, flags=os.O_CREAT)
+    if overwrite:
+        ns = NetNS(env_name, flags=os.O_CREAT | os.O_RDWR | os.O_TRUNC)
+    else:
+        ns = NetNS(env_name, flags=os.O_CREAT)
     # create tun0 interface
     _create_tun(ns, "tun0", ip_addrs[0], 32)
     # create tun1 interface
@@ -190,12 +193,14 @@ def create_sim_tun_env(env_name, env_config=None):
     return ns
 
 
-def create_sim_tap_env(env_name, env_config=None):
+def create_sim_tap_env(env_name, env_config=None, overwrite=False):
     ip_addrs = env_config.get("ip", [])
     if len(ip_addrs) < 2:
         raise Exception(f"Simulator environment require 2 IP addresses. Check config.")
-
-    ns = NetNS(env_name, flags=os.O_CREAT)
+    if overwrite:
+        ns = NetNS(env_name, flags=os.O_CREAT | os.O_RDWR | os.O_TRUNC)
+    else:
+        ns = NetNS(env_name, flags=os.O_CREAT)
     # create tap0 interface
     _create_tap(ns, "tap0", ip_addrs[0], 32)
     # create tap1 interface
@@ -220,15 +225,5 @@ def create_sim_tap_env(env_name, env_config=None):
 def set_env_for_proccess(env_name):
     netns.setns(env_name, flags=os.O_RDONLY)
 
-
 def delete_env(name):
     netns.remove(netns=name)
-
-
-def dtl_env(env_name):
-    def dec(f):
-        def wrap(*args, **kwargs):
-            with NetNS(netns=env_name) as _:
-                f(*args, **kwargs)
-        return wrap
-    return dec
