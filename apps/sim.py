@@ -5,10 +5,13 @@ from gnuradio import (analog,
                       gr,
                       monitoring as monit,)
 import os
+import sys
 from testbed import (
     app,
     testbed_io,
 )
+
+current_module = sys.modules[__name__]
 
 class _ofdm_adaptive_sim(app.dtl_app):
 
@@ -183,7 +186,7 @@ class ofdm_adaptive_full_duplex_sim(app.dtl_app):
     def __init__(self, config_dict, run_config_file):
         super().__init__(config_dict, run_config_file)
         ofdm_config = config_dict.get("ofdm_config", {})
-        config_path = os.path.dirname(run_config_file)
+        config_path = f"{os.path.dirname(current_module.__file__)}/config"
         if "fec_codes" in ofdm_config and len(ofdm_config["fec_codes"]):
             ofdm_config["fec_codes"] = [(name, f"{config_path}/{fn}")
                                         for name, fn in ofdm_config["fec_codes"]]

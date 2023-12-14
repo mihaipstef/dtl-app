@@ -12,6 +12,8 @@ from scapy.sendrecv import (
 )
 import time
 
+from pyroute2 import IPRoute
+
 def scapy_reload(f):
     def wrap(*args, **kwargs):
         conf.ifaces.reload()
@@ -20,19 +22,26 @@ def scapy_reload(f):
         f(*args, **kwargs)
     return wrap
 
+
 @scapy_reload
-def icmp_ping(db_access, ip_addr, size=64, ping_rate=1, verbose=False):
+def icmp_ping(db_access, dst_ip_addr, size=64, ping_rate=1, packets=None, verbose=False):
     sent = 0
     rcv = 0
     seq = 0
     payload = "".join(["a" for _ in range(size)])
-    while True:
-        packet = IP(dst=ip_addr, ttl=64) / ICMP(seq=seq, id=100) / payload
+    # iface = None
+    # try:
+    #     iface = next(IP(dst=dst_ip_addr).__iter__()).route()[0]
+    # except AttributeError:
+    #     iface = None
+    while packets is None or (packets is not None and sent < packets):
+        packet = IP(dst=dst_ip_addr, ttl=64) / ICMP(seq=seq, id=100) / payload
         seq += 1
         ans = sr1(packet, timeout=3, inter=1.0/ping_rate, verbose=0)
         sent += 1
         t = None
         if ans:
+            db_access.write({"probe_name": "test"})
             t = ans.time - packet.sent_time
             if db_access is not None:
                 db_access.write({"probe_name": "icmp_ping_time", "time": dt.datetime.utcnow(), "ping_time": t * 1000})

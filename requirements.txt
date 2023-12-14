@@ -5,3 +5,4 @@ pyroute2
 python-iptables
 ipcalc
 influxdb
+pytest
