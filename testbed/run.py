@@ -87,6 +87,7 @@ def run_app(app, cfg, env_name, env_cfg, config_file=None):
         stop_cnd = cfg.get("stop_condition", stop_condition.WHEN_APP_DONE)
 
         app_config["name"] = cfg["name"]
+        app_config["env_mode"] = env_cfg["mode"]
 
         app_proccess = _run_in_env(env_name, _run_app, log_store_fname=log_store_fname, dtl_app=app, config=app_config, config_file=config_file)
         #run_ofdm(**{"log_store_fname": log_store_fname, "dtl_app": dtl_app, "app_config": app_config, "config_file": experiments_file})

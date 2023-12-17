@@ -2,9 +2,8 @@
     "name": "ofdm_test",
     "show_cpu": true,
     "data_bytes": 100000,
-    "skip": false,
     "traffic_generator": {
-        "func": "icmp_gen",
+        "func": "icmp_ping",
         "kwargs": {
             "ping_rate": 1,
             "size": 64,
@@ -14,7 +13,7 @@
     "traffic_sniffer": {
         "func": "icmp_sniff",
         "kwargs": {
-            "dst_iface": "tun1",
+            "dst_iface": "tap1",
             "src_ip_addr": "2.2.2.2",
             "verbose": false
         }
@@ -24,14 +23,14 @@
         "ofdm_config": {
             "sample_rate": 100000,
             "mcs": [[-100000, ["bpsk", "fec_1"]],
-                    [10, ["qpsk", "fec_1"]],
-                    [13, ["psk8", "fec_1"]],
+                    [13, ["qpsk", "fec_1"]],
+                    [16, ["psk8", "fec_1"]],
                     [20, ["qam16", "fec_1"]]],
-            "initial_mcs_id": 1,
+            "initial_mcs_id": 0,
             "fec_codes": [["fec_1", "n_0300_k_0152_gap_03.alist"]]
+        },
+        "live_config": {
+            "direct_channel_noise_level": 0.4
         }
-    },
-    "live_config": {
-        "direct_channel_noise_level": 0.65
     }
 }

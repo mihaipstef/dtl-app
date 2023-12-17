@@ -4,7 +4,10 @@ from gnuradio import (dtl,
                       network,
                       pdu
                     )
-from testbed.ns import get_mac_addr
+from testbed.ns import (
+    get_tuntap_type,
+    get_mac_addr,
+)
 from testbed.wrap import D
 
 class pluto_in(gr.hier_block2):
@@ -95,3 +98,15 @@ class tap_io(gr.hier_block2):
         self.to_pdu = D(self, pdu.tagged_stream_to_pdu, gr.types.byte_t, len_key)
         self.to_pdu.pdus >> self.tap.pdus
         self.hb >> self.defrag >> self.to_pdu
+
+
+class tuntap:
+
+    def __new__(cls, iface, mtu, queue_size, len_key):
+        match get_tuntap_type(iface):
+            case 1:
+                return tun_io(iface, mtu, queue_size, len_key)
+            case 2:
+                return tap_io(iface, mtu, queue_size, len_key)
+            case _:
+                raise Exception("unknown interface")

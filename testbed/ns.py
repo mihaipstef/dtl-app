@@ -7,8 +7,9 @@ from pyroute2 import (
     NSPopen,
 )
 import os
-import subprocess
-
+from testbed import (
+    arp,
+)
 
 LOCAL_ROUTING_TABLE = 255
 DEFAULT_ROUTING_TABLE = 254
@@ -145,13 +146,7 @@ def _setup_world_connection(ns):
         ns.route("add", gateway=DTL_BR_GW)
 
 
-def _set_arp_entry(env_name, ip_addr, mac_addr):
-    print( ["arp", "-s", ip_addr, mac_addr])
-    nsp = NSPopen(env_name, ["arp", "-s", ip_addr, mac_addr], stdout=subprocess.PIPE)
-    #nsp = NSPopen(env_name, ["ip", "ad"], stdout=subprocess.PIPE)
-    print(nsp.communicate())
-    nsp.wait()
-    nsp.release()
+
 
 
 def _get_mac_addr(ns, ifname):
@@ -166,11 +161,27 @@ def get_mac_addr(ifname):
     return _get_mac_addr(IPRoute(), ifname)
 
 
-def create_sim_tun_env(env_name, env_config=None, overwrite=False):
-    ip_addrs = env_config.get("ip", [])
-    if len(ip_addrs) < 2:
-        raise Exception(f"Simulator environment require 2 IP addresses. Check config.")
+def get_tuntap_type(ifname):
+    links = IPRoute().get_links(ifname=ifname)
+    if len(links) > 0:
+        try:
+            link_attrs = links[0].get_attr("IFLA_LINKINFO")
+            iface_kind = _get_attribute(link_attrs["attrs"], "IFLA_INFO_KIND")
+            if iface_kind == "tun":
+                iface_type = _get_attribute(
+                    _get_attribute(link_attrs["attrs"], "IFLA_INFO_DATA")["attrs"],
+                    "IFLA_TUN_TYPE"
+                )
+            return iface_type
+        except Exception:
+            return None
+    return None
 
+
+def create_sim_tun_env(env_name, env_config=None, overwrite=False):
+    ip_addrs = [t[0] for t in env_config.get("tunnel", [])]
+    if len(ip_addrs) < 2:
+        raise Exception(f"Simulator environment requires 2 IP addresses. Check config.")
     if overwrite:
         ns = NetNS(env_name, flags=os.O_CREAT | os.O_RDWR | os.O_TRUNC)
     else:
@@ -194,9 +205,9 @@ def create_sim_tun_env(env_name, env_config=None, overwrite=False):
 
 
 def create_sim_tap_env(env_name, env_config=None, overwrite=False):
-    ip_addrs = env_config.get("ip", [])
+    ip_addrs = [t[0] for t in env_config.get("tunnel", [])]
     if len(ip_addrs) < 2:
-        raise Exception(f"Simulator environment require 2 IP addresses. Check config.")
+        raise Exception(f"Simulator environment requires 2 IP addresses. Check config.")
     if overwrite:
         ns = NetNS(env_name, flags=os.O_CREAT | os.O_RDWR | os.O_TRUNC)
     else:
@@ -217,8 +228,8 @@ def create_sim_tap_env(env_name, env_config=None, overwrite=False):
     # Connect the env to the Internet
     _setup_world_connection(ns)
     # Set ARP static entries for tap interfaces
-    _set_arp_entry(env_name, ip_addrs[0], _get_mac_addr(ns, "tap0"))
-    _set_arp_entry(env_name, ip_addrs[1], _get_mac_addr(ns, "tap1"))
+    arp.set_arp_entry(env_name, ip_addrs[0], _get_mac_addr(ns, "tap0"))
+    arp.set_arp_entry(env_name, ip_addrs[1], _get_mac_addr(ns, "tap1"))
     return ns
 
 

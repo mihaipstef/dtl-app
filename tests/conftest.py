@@ -23,7 +23,7 @@ def _env_tun_cfg(_env_db_cfg):
         "monitor_probe": "tcp://127.0.0.1:5555",
         "type": "sim",
         "mode": "tun",
-        "ip": ["2.2.2.2", "3.3.3.3"]
+        "tunnel": [("2.2.2.2",), ("3.3.3.3",)]
     }
 
 
@@ -34,7 +34,7 @@ def _env_tap_cfg(_env_db_cfg):
         "monitor_probe": "tcp://127.0.0.1:5555",
         "type": "sim",
         "mode": "tap",
-        "ip": ["2.2.2.2", "3.3.3.3"]
+        "tunnel": [("2.2.2.2",), ("3.3.3.3",)]
     }
 
 

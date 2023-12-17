@@ -1,18 +1,25 @@
 import datetime as dt
 from scapy.config import conf
 from scapy.layers.inet import (
+    Ether,
     ICMP,
     IP,
     IPOption_Timestamp,
 )
 from scapy.sendrecv import (
-    sr1,
-    send,
+    srp1,
+    sndrcv,
     sniff,
+)
+from testbed.arp import (
+    get_arp_entry,
+)
+from testbed.ns import (
+    get_mac_addr,
+    get_tuntap_type,
 )
 import time
 
-from pyroute2 import IPRoute
 
 def scapy_reload(f):
     def wrap(*args, **kwargs):
@@ -23,29 +30,53 @@ def scapy_reload(f):
     return wrap
 
 
+def _sock_and_header(dst_ip_addr):
+    l3_header = IP(dst=dst_ip_addr, ttl=64)
+    try:
+        ifname = l3_header.route()[0]
+    except AttributeError:
+        ifname = None
+
+    sock = None
+    packet_header = None
+    if ifname:
+        match get_tuntap_type(ifname):
+            case 1:
+                packet_header = l3_header
+                sock = conf.L3socket(iface=ifname)
+            case 2:
+                src_mac_addr = get_mac_addr(ifname)
+                dst_mac_addr = get_arp_entry(dst_ip_addr, ifname)
+                packet_header = Ether(src=src_mac_addr, dst=dst_mac_addr) / l3_header
+                sock = conf.L2socket(iface=ifname)
+            case _:
+                pass
+    return (sock, packet_header)
+
+
 @scapy_reload
 def icmp_ping(db_access, dst_ip_addr, size=64, ping_rate=1, packets=None, verbose=False):
     sent = 0
     rcv = 0
     seq = 0
+    sock, packet_header = _sock_and_header(dst_ip_addr)
+    print(packet_header)
     payload = "".join(["a" for _ in range(size)])
-    # iface = None
-    # try:
-    #     iface = next(IP(dst=dst_ip_addr).__iter__()).route()[0]
-    # except AttributeError:
-    #     iface = None
     while packets is None or (packets is not None and sent < packets):
-        packet = IP(dst=dst_ip_addr, ttl=64) / ICMP(seq=seq, id=100) / payload
+        packet = packet_header / ICMP(seq=seq, id=100) / payload
         seq += 1
-        ans = sr1(packet, timeout=3, inter=1.0/ping_rate, verbose=0)
+        result =  sndrcv(sock, packet, timeout=3, inter=1.0/ping_rate, verbose=0)
+        print(result)
         sent += 1
         t = None
-        if ans:
-            db_access.write({"probe_name": "test"})
-            t = ans.time - packet.sent_time
-            if db_access is not None:
-                db_access.write({"probe_name": "icmp_ping_time", "time": dt.datetime.utcnow(), "ping_time": t * 1000})
-            rcv += 1
+        if result:
+            ans = result[0][0][1]
+            if ans:
+                db_access.write({"probe_name": "test"})
+                t = ans.time - packet.sent_time
+                if db_access is not None:
+                    db_access.write({"probe_name": "icmp_ping_time", "time": dt.datetime.utcnow(), "ping_time": t * 1000})
+                rcv += 1
         if verbose:
             print(f"sent={sent}, received={rcv}, time={t}s")
         if db_access is not None:
