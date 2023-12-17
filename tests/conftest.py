@@ -1,17 +1,19 @@
+import os
+import pytest
 from testbed import (
     db,
     ns,
 )
-import pytest
 from uuid import uuid4
 
 
 @pytest.fixture
 def _env_db_cfg():
+    db_host = os.environ.get("DB_HOST", "127.0.0.1")
     return {
         "db_type": "mongo",
         "access": {
-            "uri": "mongodb://probe:probe@172.31.250.185:27017/monitor?authSource=admin"
+            "uri": f"mongodb://probe:probe@{db_host}:27017/monitor?authSource=admin"
         },
     }
 
