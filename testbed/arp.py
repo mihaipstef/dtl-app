@@ -22,7 +22,7 @@ def get_arp_entry(ip_addr, ifname):
     p.wait()
     p.terminate()
     for line in output[0].decode().split("\n"):
-        if line: 
+        if line:
             _, ip, _, mac_addr, _ = line.split(maxsplit=4)
             if ip.strip("()") == ip_addr:
                 return mac_addr
