@@ -1,6 +1,6 @@
 {
     "monitor_db": {
-        "db_type": "influx",
+        "db_type": "mongo",
         "access": {
             "uri": "mongodb://probe:probe@<db ip address>:27017/monitor?authSource=admin"
         },
@@ -11,5 +11,5 @@
     "monitor_probe": "tcp://127.0.0.1:5555",
     "type": "sim",
     "mode": "tap",
-    "ip": ["2.2.2.2", "3.3.3.3"]
+    "tunnel": [["2.2.2.2"], ["3.3.3.3"]]
 }
