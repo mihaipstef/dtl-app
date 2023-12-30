@@ -1,8 +1,8 @@
-from gnuradio import (dtl,
-                      gr,
+from gnuradio import (gr,
                       iio,
                       network,
-                      pdu
+                      pdu,
+                      testbed,
                     )
 from testbed.ns import (
     get_tuntap_type,
@@ -63,8 +63,8 @@ class tun_io(gr.hier_block2):
 
         self.hb = D(self, self)
         self.tun = D(self, network.tuntap_pdu, iface, mtu, True)
-        self.ip_validator = dtl.ip_validator("")
-        self.defrag = D(self, dtl.packet_defragmentation, self.ip_validator, len_key)
+        self.ip_validator = testbed.ip_validator("")
+        self.defrag = D(self, testbed.packet_defragmentation, self.ip_validator, len_key)
 
         # IN (to TX)
         self.to_stream = D(self, pdu.pdu_to_stream_b, pdu.EARLY_BURST_APPEND, queue_size)
@@ -86,8 +86,8 @@ class tap_io(gr.hier_block2):
 
         self.hb = D(self, self)
         self.tap = D(self, network.tuntap_pdu, iface, mtu, False)
-        self.ethernet_validator = dtl.ethernet_validator(get_mac_addr(iface))
-        self.defrag = D(self, dtl.packet_defragmentation, self.ethernet_validator, len_key)
+        self.ethernet_validator = testbed.ethernet_validator(get_mac_addr(iface))
+        self.defrag = D(self, testbed.packet_defragmentation, self.ethernet_validator, len_key)
 
         # IN (to TX)
         self.to_stream = D(self, pdu.pdu_to_stream_b, pdu.EARLY_BURST_APPEND, queue_size)

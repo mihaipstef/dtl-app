@@ -60,17 +60,18 @@ def icmp_ping(db_access, dst_ip_addr, size=64, ping_rate=1, packets=None, verbos
     rcv = 0
     seq = 0
     sock, packet_header = _sock_and_header(dst_ip_addr)
-    print(packet_header)
     payload = "".join(["a" for _ in range(size)])
     while packets is None or (packets is not None and sent < packets):
         packet = packet_header / ICMP(seq=seq, id=100) / payload
         seq += 1
         result =  sndrcv(sock, packet, timeout=3, inter=1.0/ping_rate, verbose=0)
-        print(result)
         sent += 1
         t = None
-        if result:
-            ans = result[0][0][1]
+        if (result and
+            len(result) and (r0:=result[0]) and
+            len(r0) and (r00:=r0[0]) and
+            len(r00) >= 1):
+            ans = r00[1]
             if ans:
                 db_access.write({"probe_name": "test"})
                 t = ans.time - packet.sent_time
@@ -87,32 +88,35 @@ def icmp_ping(db_access, dst_ip_addr, size=64, ping_rate=1, packets=None, verbos
 def icmp_gen(db_access, dst_ip_addr, size=64, ping_rate=1):
     seq = 0
     payload = "".join(["a" for _ in range(size)])
-    iface = None
-    try:
-        iface = next(IP(dst=dst_ip_addr).__iter__()).route()[0]
-    except AttributeError:
-        iface = None
-    sock = conf.L3socket(iface=iface)
+    sock, header = _sock_and_header(dst_ip_addr)
+    l2_header = None
+    if Ether in header:
+        l2_header = header[Ether]
+        l2_header.remove_payload()
     while True:
         ts = int(time.time() * 1000) % (2 ** 32)
-        packet = IP(dst=dst_ip_addr, ttl=64, options=IPOption_Timestamp(flg=0, timestamp=ts)) / ICMP(seq=seq, id=100) / payload
+        if l2_header:
+            packet = l2_header / IP(dst=dst_ip_addr, ttl=64, options=IPOption_Timestamp(flg=0, timestamp=ts)) / ICMP(seq=seq, id=100) / payload
+        else:
+            packet = IP(dst=dst_ip_addr, ttl=64, options=IPOption_Timestamp(flg=0, timestamp=ts)) / ICMP(seq=seq, id=100) / payload
         seq += 1
         sock.send(packet)
         time.sleep(1.0/ping_rate)
 
 
 @scapy_reload
-def icmp_sniff(db_access, src_ip_addr, dst_iface, verbose=False):
+def icmp_sniff(db_access, src_ip_addr, iface, verbose=False):
     expected_seq = None
     lost_packets = 0
     packet_error_rate = 0
     
     while True:
-        packet = sniff(iface=dst_iface, filter=f"icmp", count=1)[0]
+        packet = sniff(iface=iface, filter=f"", count=1)[0]
         ts = packet.time * 1000  % (2 ** 32)
         latency = None
         if ICMP not in packet or packet[ICMP].seq is None or packet[ICMP].id != 100:
             continue
+        sent_ts = None
         if len(packet[IP].options) == 1 and getattr(packet[IP].options[0], "timestamp", None) is not None:
             sent_ts = packet[IP].options[0].timestamp
             if sent_ts > ts:

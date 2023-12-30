@@ -2,17 +2,17 @@ from datetime import (
     datetime,
     timedelta,
 )
-from gnuradio import monitoring as monit
+from gnuradio import testbed
 import pmt
 import zmq
 
 
 def parse_msg(data):
     try:
-        result = monit.parse_msg(data, len(data))
-        if result.encoding == monit.msg_encoding_t.UNKNOWN:
+        result = testbed.parse_msg(data, len(data))
+        if result.encoding == testbed.msg_encoding_t.UNKNOWN:
             return {}
-        if result.encoding == monit.msg_encoding_t.PMT:
+        if result.encoding == testbed.msg_encoding_t.PMT:
             return pmt.to_python(result.get_pmt())
         else:
             d = dict(result.get_dict())

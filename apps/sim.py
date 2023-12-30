@@ -3,7 +3,7 @@ from gnuradio import (analog,
                       channels,
                       dtl,
                       gr,
-                      monitoring as monit,)
+                      testbed)
 import os
 import sys
 from testbed import (
@@ -54,6 +54,7 @@ class ofdm_adaptive_full_duplex_sim(app.dtl_app):
 
         self.modem1 = dtl.ofdm_adaptive_full_duplex.from_parameters(
             config_dict=ofdm_config,
+            name="m0",
             fft_len=self.fft_len,
             cp_len=self.cp_len,
             rolloff=0,
@@ -64,6 +65,7 @@ class ofdm_adaptive_full_duplex_sim(app.dtl_app):
         )
         self.modem2 = dtl.ofdm_adaptive_full_duplex.from_parameters(
             config_dict=ofdm_config,
+            name="m1",
             fft_len=self.fft_len,
             cp_len=self.cp_len,
             rolloff=0,
@@ -89,8 +91,8 @@ class ofdm_adaptive_full_duplex_sim(app.dtl_app):
             "monitor_probe", "tcp://127.0.0.1:5555")
         monitor_probe_name = config_dict.get("monitor_probe_name", "probe")
 
-        self.monitor_probe = monit.monitor_probe(
-            monitor_probe_name, monit.message_sender(monitor_address, bind=False))
+        self.monitor_probe = testbed.monitor_probe(
+            monitor_probe_name, testbed.message_sender(monitor_address, bind=False))
 
     def get_samp_rate(self):
         return self.samp_rate

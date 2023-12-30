@@ -146,9 +146,6 @@ def _setup_world_connection(ns):
         ns.route("add", gateway=DTL_BR_GW)
 
 
-
-
-
 def _get_mac_addr(ns, ifname):
     links = ns.get_links(ifname=ifname)
     if len(links) > 0:
