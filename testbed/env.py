@@ -40,8 +40,8 @@ def _recursive_chown_if_sudo(name):
 
 _env_create = {
     "sim": {
-        "tap": ns.create_sim_tap_env,
-        "tun": ns.create_sim_tun_env,
+        "tap": ns.create_tap_env,
+        "tun": ns.create_tun_env,
     }
 }
 
@@ -69,6 +69,8 @@ def create(name, config):
                 try:
                     _env_create[config_json["type"]][config_json["mode"]](name, config_json)
                 except:
+                    import traceback
+                    print(traceback.format_exc())
                     raise Exception("Something is wrong with env config!")
         finally:
             _recursive_chown_if_sudo(name)

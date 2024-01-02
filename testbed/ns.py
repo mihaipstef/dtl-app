@@ -19,7 +19,9 @@ DTL_BR_SUBNET = "192.168.0.0/24"
 DTL_BR_GW = str(ipcalc.Network("192.168.0.0/24") + 1)
 
 
-def _create_tuntap(ns, mode, if_name, ip_addr, mask):
+def _create_tuntap(ns, mode, if_name, addresses, mask):
+    ip_addr, *mac_addr = addresses
+    mac_addr = mac_addr[0] if mac_addr else None
     links = ns.link_lookup(ifname=if_name)
     if len(links) > 0:
         # Link already exists
@@ -27,6 +29,8 @@ def _create_tuntap(ns, mode, if_name, ip_addr, mask):
     else:
         ns.link("add", ifname=if_name, kind="tuntap", mode=mode)
         tun_idx = ns.link_lookup(ifname=if_name)[0]
+        if mac_addr:
+            ns.link("set", index=tun_idx, address=mac_addr)
         tun_addr = ns.get_addr(index=tun_idx)
         assert (len(tun_addr) <= 1)
         if len(tun_addr) == 0:
@@ -35,12 +39,12 @@ def _create_tuntap(ns, mode, if_name, ip_addr, mask):
         ns.link("set", index=tun_idx, state="up")
 
 
-def _create_tun(ns, if_name, ip_addr, mask):
-    return _create_tuntap(ns, "tun", if_name, ip_addr, mask)
+def _create_tun(ns, if_name, addresses, mask):
+    return _create_tuntap(ns, "tun", if_name, addresses, mask)
 
 
-def _create_tap(ns, if_name, ip_addr, mask):
-    return _create_tuntap(ns, "tap", if_name, ip_addr, mask)
+def _create_tap(ns, if_name, addresses, mask):
+    return _create_tuntap(ns, "tap", if_name, addresses, mask)
 
 
 def _get_attribute(attrs, k):
@@ -58,23 +62,20 @@ def _setup_local_route(ns, if_name):
         ns.rule("add", iifname=if_name, table=INCOMING_LOCAL_TRAFFIC_TABLE)
 
 
+def  _setup_one_way_route(ns, oif_name, dst_ip_addr):
+    oidx = ns.link_lookup(ifname=oif_name)[0]
+    routes_to_dst = ns.get_routes(
+        match=lambda x: x["table"] == DEFAULT_ROUTING_TABLE and dst_ip_addr == _get_attribute(
+            x["attrs"], "RTA_DST"))
+    if len(routes_to_dst) == 0:
+        ns.route("add", dst=f"{dst_ip_addr}", scope="link", oif=oidx, table=DEFAULT_ROUTING_TABLE)
+
+
 def _setup_p2p_routes(ns, if1_name, if2_name):
-    idx1 = ns.link_lookup(ifname=if1_name)[0]
-    idx2 = ns.link_lookup(ifname=if2_name)[0]
-
-    if1_addr = _get_attribute(ns.get_addr(index=idx1)[0]["attrs"], "IFA_ADDRESS")
-    routes_to_1 = ns.get_routes(
-        match=lambda x: x["table"] == DEFAULT_ROUTING_TABLE and if1_addr == _get_attribute(
-            x["attrs"], "RTA_DST"))
-    if len(routes_to_1) == 0:
-        ns.route("add", dst=f"{if1_addr}", scope="link", oif=idx2, table=DEFAULT_ROUTING_TABLE)
-
-    if2_addr = _get_attribute(ns.get_addr(index=idx2)[0]["attrs"], "IFA_ADDRESS")
-    routes_to_2 = ns.get_routes(
-        match=lambda x: x["table"] == DEFAULT_ROUTING_TABLE and if2_addr == _get_attribute(
-            x["attrs"], "RTA_DST"))
-    if len(routes_to_2) == 0:
-        ns.route("add", dst=f"{if2_addr}", scope="link", oif=idx1, table=DEFAULT_ROUTING_TABLE)
+    if1_addr = _get_attribute(ns.get_addr(label=if1_name)[0]["attrs"], "IFA_ADDRESS")
+    if2_addr = _get_attribute(ns.get_addr(label=if2_name)[0]["attrs"], "IFA_ADDRESS")
+    _setup_one_way_route(ns, if1_name, if2_addr)
+    _setup_one_way_route(ns, if2_name, if1_addr)
 
 
 def _find_gw_route(ip):
@@ -175,25 +176,31 @@ def get_tuntap_type(ifname):
     return None
 
 
-def create_sim_tun_env(env_name, env_config=None, overwrite=False):
+def create_tun_env(env_name, env_config=None, overwrite=False):
     ip_addrs = [t[0] for t in env_config.get("tunnel", [])]
+    mac_addrs = [t[1] if len(t)>=2 else None for t in env_config.get("tunnel", [])]
+    env_type = env_config.get("type", "sim")
     if len(ip_addrs) < 2:
-        raise Exception(f"Simulator environment requires 2 IP addresses. Check config.")
+        raise Exception(f"Environment requires 2 IP addresses. Check config.")
     if overwrite:
         ns = NetNS(env_name, flags=os.O_CREAT | os.O_RDWR | os.O_TRUNC)
     else:
         ns = NetNS(env_name, flags=os.O_CREAT)
     # create tun0 interface
-    _create_tun(ns, "tun0", ip_addrs[0], 32)
-    # create tun1 interface
-    _create_tun(ns, "tun1", ip_addrs[1], 32)
+    _create_tun(ns, "tun0", (ip_addrs[0], mac_addrs[0]), 32)
+    # create tun1 interface (only for sim environment)
+    if env_type == "sim":
+        _create_tun(ns, "tun1", (ip_addrs[1], mac_addrs[1]), 32)
     # delete local routes created by default
     ns.flush_routes(table=LOCAL_ROUTING_TABLE)
     # setup routes for accepting local incoming traffic
     _setup_local_route(ns, "tun0")
-    _setup_local_route(ns, "tun1")
-    # setup p2p routes
-    _setup_p2p_routes(ns, "tun0", "tun1")
+    if env_type == "sim":
+        _setup_local_route(ns, "tun1")
+        # setup p2p routes
+        _setup_p2p_routes(ns, "tun0", "tun1")
+    else:
+        _setup_one_way_route(ns, "tun0", ip_addrs[1])
     # Up loopback interface
     ns.link("set", index=ns.link_lookup(ifname="lo")[0], state="up")
     # Connect the env to the Internet
@@ -201,25 +208,31 @@ def create_sim_tun_env(env_name, env_config=None, overwrite=False):
     return ns
 
 
-def create_sim_tap_env(env_name, env_config=None, overwrite=False):
+def create_tap_env(env_name, env_config=None, overwrite=False):
     ip_addrs = [t[0] for t in env_config.get("tunnel", [])]
+    mac_addrs = [t[1] if len(t)>=2 else None for t in env_config.get("tunnel", [])]
+    env_type = env_config.get("type", "sim")
     if len(ip_addrs) < 2:
-        raise Exception(f"Simulator environment requires 2 IP addresses. Check config.")
+        raise Exception(f"Environment requires 2 IP addresses. Check config.")
     if overwrite:
         ns = NetNS(env_name, flags=os.O_CREAT | os.O_RDWR | os.O_TRUNC)
     else:
         ns = NetNS(env_name, flags=os.O_CREAT)
     # create tap0 interface
-    _create_tap(ns, "tap0", ip_addrs[0], 32)
-    # create tap1 interface
-    _create_tap(ns, "tap1", ip_addrs[1], 32)
+    _create_tap(ns, "tap0", (ip_addrs[0], mac_addrs[0]), 32)
+    # create tap1 interface (only for sim env)
+    if env_type == "sim":
+        _create_tap(ns, "tap1", (ip_addrs[1], mac_addrs[1]), 32)
     # delete local routes created by default
     ns.flush_routes(table=LOCAL_ROUTING_TABLE)
     # setup routes for accepting local incoming traffic
     _setup_local_route(ns, "tap0")
-    _setup_local_route(ns, "tap1")
-    # setup p2p routes
-    _setup_p2p_routes(ns, "tap0", "tap1")
+    if env_type == "sim":
+        _setup_local_route(ns, "tap1")
+        # setup p2p routes
+        _setup_p2p_routes(ns, "tap0", "tap1")
+    else:
+        _setup_one_way_route(ns, "tap0", ip_addrs[1])
     # Up loopback interface
     ns.link("set", index=ns.link_lookup(ifname="lo")[0], state="up")
     # Connect the env to the Internet
@@ -232,6 +245,7 @@ def create_sim_tap_env(env_name, env_config=None, overwrite=False):
 
 def set_env_for_proccess(env_name):
     netns.setns(env_name, flags=os.O_RDONLY)
+
 
 def delete_env(name):
     netns.remove(netns=name)

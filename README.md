@@ -48,8 +48,9 @@ Some of the configuration parameters are application speciffic (i.e. ofdm_config
 |Section|Description|
 |-|-|
 |ofdm_config | OFDM adaptive configuration which is application speciffic|
-|traffic generator | Tool used to generate traffic|
-|live config| A set of parameters that the application is able to change on the fly. |
+|traffic_generator | Tool used to generate traffic|
+|live_config| A set of parameters that the application is able to change on the fly. |
+
 ```json
 [
     {
