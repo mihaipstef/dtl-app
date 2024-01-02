@@ -44,7 +44,7 @@ def _env_tap_cfg(_env_db_cfg):
 def tun_env(_env_tun_cfg):
     env_name = "pytest0"
     # create the network environment
-    env = ns.create_sim_tun_env(env_name, _env_tun_cfg, overwrite=True)
+    env = ns.create_tun_env(env_name, _env_tun_cfg, overwrite=True)
     # pass environment information to the test
     yield {
         "env_cfg": _env_tun_cfg,
@@ -59,7 +59,7 @@ def tun_env(_env_tun_cfg):
 def tap_env(_env_tap_cfg):
     env_name = "pytest1"
     # create the network environment
-    env = ns.create_sim_tap_env(env_name, _env_tap_cfg, overwrite=True)
+    env = ns.create_tap_env(env_name, _env_tap_cfg, overwrite=True)
     # pass environment information to the test
     yield {
         "env_cfg": _env_tap_cfg,
