@@ -16,4 +16,4 @@ if __name__ == "__main__":
     db_client = pymongo.MongoClient(args.db)
     db = db_client["probe_data"]
 
-    app.monitoring.start_collect(args.probe, db, args.collection)
+    testbed.monitoring.start_collect(args.probe, db, args.collection)
