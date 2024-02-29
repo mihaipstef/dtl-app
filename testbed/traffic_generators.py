@@ -105,13 +105,13 @@ def icmp_gen(db_access, dst_ip_addr, size=64, ping_rate=1):
 
 
 @scapy_reload
-def icmp_sniff(db_access, src_ip_addr, iface, verbose=False):
+def icmp_sniff(db_access, src_ip_addr, dst_iface, verbose=False):
     expected_seq = None
     lost_packets = 0
     packet_error_rate = 0
     
     while True:
-        packet = sniff(iface=iface, filter=f"", count=1)[0]
+        packet = sniff(iface=dst_iface, filter=f"", count=1)[0]
         ts = packet.time * 1000  % (2 ** 32)
         latency = None
         if ICMP not in packet or packet[ICMP].seq is None or packet[ICMP].id != 100:

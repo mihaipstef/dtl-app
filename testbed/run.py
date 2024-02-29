@@ -122,9 +122,12 @@ def run_app(app, cfg, env_name, env_cfg, config_file=None):
             f"Running flow {name} PID: {app_proccess.pid}, monitoring PID: {monitor_process_pid}"
             f", traffic gen PID: {traffic_generator_pid}, traffic collect PID: {traffic_sniffer_pid}")
 
+        try:
+            app_ps = ps.Process(app_proccess.pid)
+            broker_ps = ps.Process(monitor_process.pid)
+        except:
+            raise KeyboardInterrupt()
 
-        app_ps = ps.Process(app_proccess.pid)
-        broker_ps = ps.Process(monitor_process.pid)
         total_app_cpu = 0
         total_broker_cpu = 0
         count = 0
