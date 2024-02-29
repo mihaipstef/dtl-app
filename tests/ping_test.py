@@ -12,14 +12,20 @@ from testbed import (
 
 
 
-@pytest.mark.parametrize("fixture_name, packets, protocol, use_fec", [
-    ("tun_env", 5, testbed.transported_protocol_t.IPV4_ONLY, False),
-    ("tap_env", 5, testbed.transported_protocol_t.ETHER_IPV4, False),
-    ("tap_env", 5, testbed.transported_protocol_t.MODIFIED_ETHER, False),
-    ("tun_env", 5, testbed.transported_protocol_t.IPV4_ONLY, True),
-    ("tap_env", 5, testbed.transported_protocol_t.ETHER_IPV4, True),
-    ("tap_env", 5, testbed.transported_protocol_t.MODIFIED_ETHER, True),])
-def test_fullduplex_ping(fixture_name, packets, protocol, use_fec, request):
+@pytest.mark.parametrize("fixture_name, packets, packet_sz, protocol, use_fec", [
+    ("tun_env", 5, 100, testbed.transported_protocol_t.IPV4_ONLY, False),
+    ("tap_env", 5, 100, testbed.transported_protocol_t.ETHER_IPV4, False),
+    ("tap_env", 5, 100, testbed.transported_protocol_t.MODIFIED_ETHER, False),
+    ("tun_env", 5, 100, testbed.transported_protocol_t.IPV4_ONLY, True),
+    ("tap_env", 5, 100, testbed.transported_protocol_t.ETHER_IPV4, True),
+    ("tap_env", 5, 100, testbed.transported_protocol_t.MODIFIED_ETHER, True),
+    ("tun_env", 2, 10000, testbed.transported_protocol_t.IPV4_ONLY, False),
+    ("tap_env", 2, 10000, testbed.transported_protocol_t.ETHER_IPV4, False),
+    ("tap_env", 2, 10000, testbed.transported_protocol_t.MODIFIED_ETHER, False),
+    ("tun_env", 2, 10000, testbed.transported_protocol_t.IPV4_ONLY, True),
+    ("tap_env", 2, 10000, testbed.transported_protocol_t.ETHER_IPV4, True),
+    ("tap_env", 2, 10000, testbed.transported_protocol_t.MODIFIED_ETHER, True),])
+def test_fullduplex_ping(fixture_name, packets, packet_sz, protocol, use_fec, request):
     env = request.getfixturevalue(fixture_name)
     env_cfg = env["env_cfg"]
     env_cfg["protocol"] = protocol
@@ -30,8 +36,8 @@ def test_fullduplex_ping(fixture_name, packets, protocol, use_fec, request):
         "traffic_generator": {
             "func": "icmp_ping",
             "kwargs": {
-                "ping_rate": 1,
-                "size": 64,
+                "ping_rate": 0.5,
+                "size": packet_sz,
                 "dst_ip_addr": "3.3.3.3",
                 "packets": packets,
             }
