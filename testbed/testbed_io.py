@@ -56,7 +56,7 @@ class pluto_out(gr.hier_block2):
 
 class tun_io(gr.hier_block2):
 
-    def __init__(self, iface, mtu, queue_size, len_key):
+    def __init__(self, iface, mtu, queue_size, len_key, data_type):
         gr.hier_block2.__init__(self, "tun_io",
                                 gr.io_signature(1, 1, gr.sizeof_char),
                                 gr.io_signature(1, 1, gr.sizeof_char))
@@ -64,49 +64,52 @@ class tun_io(gr.hier_block2):
         self.hb = D(self, self)
         self.tun = D(self, network.tuntap_pdu, iface, mtu, True)
         self.ip_validator = testbed.ip_validator("")
-        self.defrag = D(self, testbed.packet_defragmentation, self.ip_validator, len_key)
+        self.from_phy = D(self, testbed.from_phy, testbed.transported_protocol_t.IPV4_ONLY, self.ip_validator, len_key)
 
         # IN (to TX)
-        self.to_stream = D(self, pdu.pdu_to_stream_b, pdu.EARLY_BURST_APPEND, queue_size)
-        self.tun.pdus >> self.to_stream.pdus
-        self.to_stream  >> self.hb
+        self.to_phy = D(self, testbed.to_phy, testbed.transported_protocol_t.IPV4_ONLY, data_type, len_key)
+        self.tun.pdus >> self.to_phy.pdus
+        self.to_phy  >> self.hb
 
         # OUT (from RX)
         self.to_pdu = D(self, pdu.tagged_stream_to_pdu, gr.types.byte_t, len_key)
         self.to_pdu.pdus >> self.tun.pdus
-        self.hb >> self.defrag >> self.to_pdu
+        self.hb >> self.from_phy >> self.to_pdu
 
 
 class tap_io(gr.hier_block2):
 
-    def __init__(self, iface, mtu, queue_size, len_key):
+    def __init__(self, iface, mtu, queue_size, len_key, protocol, data_type):
         gr.hier_block2.__init__(self, "tap_io",
                                 gr.io_signature(1, 1, gr.sizeof_char),
                                 gr.io_signature(1, 1, gr.sizeof_char))
 
         self.hb = D(self, self)
         self.tap = D(self, network.tuntap_pdu, iface, mtu, False)
-        self.ethernet_validator = testbed.ethernet_validator(get_mac_addr(iface))
-        self.defrag = D(self, testbed.packet_defragmentation, self.ethernet_validator, len_key)
+        if protocol == testbed.transported_protocol_t.MODIFIED_ETHER:
+            validator = testbed.modified_ethernet_validator(get_mac_addr(iface))
+        else:
+            validator = testbed.ethernet_validator(get_mac_addr(iface))
+        self.from_phy = D(self, testbed.from_phy, protocol, validator, len_key)
 
         # IN (to TX)
-        self.to_stream = D(self, pdu.pdu_to_stream_b, pdu.EARLY_BURST_APPEND, queue_size)
-        self.tap.pdus >> self.to_stream.pdus
-        self.to_stream >> self.hb
+        self.to_phy = D(self, testbed.to_phy, protocol, data_type, len_key)
+        self.tap.pdus >> self.to_phy.pdus
+        self.to_phy >> self.hb
 
         # OUT (from RX)
         self.to_pdu = D(self, pdu.tagged_stream_to_pdu, gr.types.byte_t, len_key)
         self.to_pdu.pdus >> self.tap.pdus
-        self.hb >> self.defrag >> self.to_pdu
+        self.hb >> self.from_phy >> self.to_pdu
 
 
 class tuntap:
 
-    def __new__(cls, iface, mtu, queue_size, len_key):
+    def __new__(cls, iface, mtu, queue_size, len_key, protocol, data_type):
         match get_tuntap_type(iface):
             case 1:
-                return tun_io(iface, mtu, queue_size, len_key)
+                return tun_io(iface, mtu, queue_size, len_key, data_type)
             case 2:
-                return tap_io(iface, mtu, queue_size, len_key)
+                return tap_io(iface, mtu, queue_size, len_key, protocol, data_type)
             case _:
                 raise Exception("unknown interface")

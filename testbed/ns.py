@@ -4,7 +4,6 @@ from pyroute2 import (
     IPRoute,
     NetNS,
     netns,
-    NSPopen,
 )
 import os
 from testbed import (

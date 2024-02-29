@@ -24,9 +24,11 @@ class ofdm_adaptive_full_duplex_sim(app.dtl_app):
         super().__init__(config_dict, run_config_file)
         ofdm_config = config_dict.get("ofdm_config", {})
         config_path = f"{os.path.dirname(current_module.__file__)}/config"
+        self.data_type = testbed.data_type_t.BYTE
         if "fec_codes" in ofdm_config and len(ofdm_config["fec_codes"]):
             ofdm_config["fec_codes"] = [(name, f"{config_path}/{fn}")
                                         for name, fn in ofdm_config["fec_codes"]]
+            self.data_type = testbed.data_type_t.BIT
         self.samp_rate = samp_rate = config_dict.get("sample_rate", 200000)
         self.n_bytes = 100
         self.direct_channel_noise_level = 0.0001
@@ -49,8 +51,8 @@ class ofdm_adaptive_full_duplex_sim(app.dtl_app):
         # Blocks
         ##################################################
 
-        self.io1 = testbed_io.tuntap(f"{self.ifaces_base}0", 65000, 2048, self.len_key)
-        self.io2 = testbed_io.tuntap(f"{self.ifaces_base}1", 65000, 2048, self.len_key)
+        self.io1 = testbed_io.tuntap(f"{self.ifaces_base}0", 65000, 2048, self.len_key, testbed.transported_protocol_t.MODIFIED_ETHER, self.data_type)
+        self.io2 = testbed_io.tuntap(f"{self.ifaces_base}1", 65000, 2048, self.len_key, testbed.transported_protocol_t.MODIFIED_ETHER, self.data_type)
 
         self.modem1 = dtl.ofdm_adaptive_full_duplex.from_parameters(
             config_dict=ofdm_config,
