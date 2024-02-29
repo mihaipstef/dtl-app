@@ -106,12 +106,14 @@ class D(object):
 
         if ((sig_in:=getattr(self.wrapped, "input_signature", None))
             and sig_in is not None and callable(sig_in)):
-            for i, sz in enumerate(sig_in().sizeof_stream_items()):
+            for i in range(sig_in().max_streams()):
+                sz = sig_in().sizeof_stream_item(i)
                 self.inp.append(Port(i, tb, self, self.wrapped, PortDir.IN, PortType.STREAM, sz))
 
         if ((sig_out:=getattr(self.wrapped, "output_signature", None))
             and sig_out is not None and callable(sig_out)):
-            for i, sz in enumerate(sig_out().sizeof_stream_items()):
+            for i in range(sig_out().max_streams()):
+                sz = sig_out().sizeof_stream_item(i)
                 self.outp.append(Port(i, tb, self, self.wrapped, PortDir.OUT, PortType.STREAM, sz))
 
 
