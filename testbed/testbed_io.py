@@ -56,7 +56,7 @@ class pluto_out(gr.hier_block2):
 
 class tun_io(gr.hier_block2):
 
-    def __init__(self, iface, mtu, queue_size, len_key, data_type):
+    def __init__(self, iface, mtu, queue_size, len_key):
         gr.hier_block2.__init__(self, "tun_io",
                                 gr.io_signature(1, 1, gr.sizeof_char),
                                 gr.io_signature(1, 1, gr.sizeof_char))
@@ -67,7 +67,7 @@ class tun_io(gr.hier_block2):
         self.from_phy = D(self, testbed.from_phy, testbed.transported_protocol_t.IPV4_ONLY, self.ip_validator, len_key)
 
         # IN (to TX)
-        self.to_phy = D(self, testbed.to_phy, testbed.transported_protocol_t.IPV4_ONLY, data_type, len_key)
+        self.to_phy = D(self, testbed.to_phy, testbed.transported_protocol_t.IPV4_ONLY, len_key)
         self.tun.pdus >> self.to_phy.pdus
         self.to_phy  >> self.hb
 
@@ -79,7 +79,7 @@ class tun_io(gr.hier_block2):
 
 class tap_io(gr.hier_block2):
 
-    def __init__(self, iface, mtu, queue_size, len_key, protocol, data_type):
+    def __init__(self, iface, mtu, queue_size, len_key, protocol):
         gr.hier_block2.__init__(self, "tap_io",
                                 gr.io_signature(1, 1, gr.sizeof_char),
                                 gr.io_signature(1, 1, gr.sizeof_char))
@@ -93,7 +93,7 @@ class tap_io(gr.hier_block2):
         self.from_phy = D(self, testbed.from_phy, protocol, validator, len_key)
 
         # IN (to TX)
-        self.to_phy = D(self, testbed.to_phy, protocol, data_type, len_key)
+        self.to_phy = D(self, testbed.to_phy, protocol, len_key)
         self.tap.pdus >> self.to_phy.pdus
         self.to_phy >> self.hb
 
@@ -105,11 +105,11 @@ class tap_io(gr.hier_block2):
 
 class tuntap:
 
-    def __new__(cls, iface, mtu, queue_size, len_key, protocol, data_type):
+    def __new__(cls, iface, mtu, queue_size, len_key, protocol):
         match get_tuntap_type(iface):
             case 1:
-                return tun_io(iface, mtu, queue_size, len_key, data_type)
+                return tun_io(iface, mtu, queue_size, len_key)
             case 2:
-                return tap_io(iface, mtu, queue_size, len_key, protocol, data_type)
+                return tap_io(iface, mtu, queue_size, len_key, protocol)
             case _:
                 raise Exception("unknown interface")
