@@ -2,35 +2,34 @@
     "name": "ofdm_test",
     "show_cpu": true,
     "data_bytes": 100000,
-    "traffic_generator": {
-        "func": "icmp_ping",
-        "kwargs": {
-            "ping_rate": 1,
-            "size": 64,
-            "dst_ip_addr": "3.3.3.3"
+
+    "traffic": {
+        "gen": {
+            "name":"icmp_ping",
+            "report": "IcmpPingReport",
+            "params": {
+                "dst_ip_addr": "3.3.3.3"
+            }
+        },
+        "_sniffer": {
+            "report": "IcmpPingReport",
+            "iface": "tap1"
         }
     },
-    "traffic_sniffer": {
-        "func": "icmp_sniff",
-        "kwargs": {
-            "dst_iface": "tap1",
-            "src_ip_addr": "2.2.2.2",
-            "verbose": false
-        }
-    },
+
     "app_config": {
-        "sample_rate": 100000,
+        "sample_rate": 50000,
         "ofdm_config": {
-            "sample_rate": 100000,
+            "sample_rate": 50000,
             "mcs": [[-100000, ["bpsk", "fec_1"]],
-                    [13, ["qpsk", "fec_1"]],
-                    [16, ["psk8", "fec_1"]],
-                    [20, ["qam16", "fec_1"]]],
-            "initial_mcs_id": 0,
-            "fec_codes": [["fec_1", "n_0300_k_0152_gap_03.alist"]]
+                    [-13, ["qpsk", "fec_1"]],
+                    [-1160, ["psk8", "fec_1"]],
+                    [-2220, ["qam16", "fec_1"]]],
+            "initial_mcs_id": 3,
+            "fec_codes": [["fec_1", "n_1080_k_800.alist"]]
         },
         "live_config": {
-            "direct_channel_noise_level": 0.4
+            "direct_channel_noise_level": 0.6
         }
     }
 }

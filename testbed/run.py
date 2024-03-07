@@ -7,7 +7,6 @@ from testbed import (
     env,
     monitoring,
     ns,
-    traffic_generators,
 )
 from  apps import sim, simplex
 import multiprocessing
@@ -18,6 +17,8 @@ import sys
 import time
 import traceback
 import uuid
+
+from testbed import traffic
 
 
 class stop_condition(enum.Enum):
@@ -94,28 +95,23 @@ def run_app(app, cfg, env_name, env_cfg, config_file=None):
 
         time.sleep(1)
 
-        traffic_generator = cfg.get("traffic_generator", None)
         traffic_generator_process = None
         traffic_generator_pid = None
-
-        if traffic_generator:
-            tr_func = getattr(traffic_generators, traffic_generator["func"])
-            if tr_func:
-                args = traffic_generator["kwargs"]
-                args["db_access"] = db_access
-                traffic_generator_process = _run_in_env(env_name, tr_func, **args)
-                traffic_generator_pid = traffic_generator_process.pid
-
-        traffic_sniffer = cfg.get("traffic_sniffer", None)
         traffic_sniffer_process = None
         traffic_sniffer_pid = None
 
-        if traffic_sniffer:
-            tr_func = getattr(traffic_generators, traffic_sniffer["func"])
+        traffic_config = cfg.get("traffic", None)
+        if traffic_config:
+            tr_func = getattr(traffic, traffic_config["gen"]["name"])
             if tr_func:
-                args = traffic_sniffer["kwargs"]
-                args["db_access"] = db_access
-                traffic_sniffer_process =  _run_in_env(env_name, tr_func, **args)
+                args = traffic_config["gen"]["params"]
+                if rep_cls:=getattr(traffic, traffic_config["gen"]["report"]):
+                    args["report"] = rep_cls(db_access, True)
+                traffic_generator_process = _run_in_env(env_name, tr_func, **args)
+                traffic_generator_pid = traffic_generator_process.pid
+
+            if "sniffer" in traffic_config and (report_cls:=getattr(traffic, traffic_config["sniffer"]["report"])):
+                traffic_sniffer_process =  _run_in_env(env_name, traffic.sniff, report_cls(db_access, True), traffic_config["sniffer"]["iface"])
                 traffic_sniffer_pid = traffic_sniffer_process.pid
 
         print(
