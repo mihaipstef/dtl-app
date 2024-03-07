@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
-import testbed.traffic_generators as gen
+import testbed.traffic.icmp_gen as gen
 import multiprocessing as mp
 from scapy.all import (
     get_if_addr,
