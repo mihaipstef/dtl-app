@@ -7,7 +7,7 @@ from .icmp_sniff_reports import (
     IcmpSniffReport,
 )
 from .l2_gen import (
-    timestamped_gen,
+    uniform_gen,
 )
 from .l2_sniff_reports import (
     L2SniffReport,

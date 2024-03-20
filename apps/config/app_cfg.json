@@ -5,14 +5,14 @@
 
     "traffic": {
         "gen": {
-            "name":"icmp_ping",
-            "report": "IcmpPingReport",
+            "name":"uniform_gen",
             "params": {
-                "dst_ip_addr": "3.3.3.3"
+                "src_iface": "tap0",
+                "dst_iface": "tap1"
             }
         },
-        "_sniffer": {
-            "report": "IcmpPingReport",
+        "sniffer": {
+            "report": "L2SniffReport",
             "iface": "tap1"
         }
     },
