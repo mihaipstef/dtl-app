@@ -105,7 +105,7 @@ def run_app(app, cfg, env_name, env_cfg, config_file=None):
             tr_func = getattr(traffic, traffic_config["gen"]["name"])
             if tr_func:
                 args = traffic_config["gen"]["params"]
-                if rep_cls:=getattr(traffic, traffic_config["gen"]["report"]):
+                if "report" in traffic_config["gen"] and (rep_cls:=getattr(traffic, traffic_config["gen"]["report"])):
                     args["report"] = rep_cls(db_access, True)
                 traffic_generator_process = _run_in_env(env_name, tr_func, **args)
                 traffic_generator_pid = traffic_generator_process.pid

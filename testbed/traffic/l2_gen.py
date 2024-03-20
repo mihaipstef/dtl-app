@@ -5,7 +5,11 @@ from scapy.config import conf
 from scapy.layers.inet import (
     Ether,
 )
-from testbed.traffic.layers import MonitoringInfo
+from testbed.traffic.layers import (
+    GeneratorType,
+    MonitoringInfo,
+    UniformGeneratorInfo,
+)
 from testbed.traffic.utils import (
     scapy_reload,
 )
@@ -29,15 +33,17 @@ def _sock_and_header_without_ip(src_iface: str, dst_iface: Optional[str], dst_ma
 
 
 @scapy_reload
-def timestamped_gen(src_iface: str, dst_iface: Optional[str] = None, dst_mac_addr: Optional[str] = None, report = None, size=64, ping_rate=1):
+def uniform_gen(src_iface: str, dst_iface: Optional[str] = None, dst_mac_addr: Optional[str] = None, report = None, size=64, rate=1):
     seq = 0
     payload = "".join(["a" for _ in range(size)])
     sock, header = _sock_and_header_without_ip(src_iface, dst_iface, dst_mac_addr)
-    monitoring_info = MonitoringInfo()
+    monitoring_info = MonitoringInfo(gen=GeneratorType.UNIFORM)
+    interval = 1.0/rate
+    gen_info = UniformGeneratorInfo(inter=int(interval*1000))
     while True:
         monitoring_info.ts = int(time.time() * 1000) % (2 ** 32)
         monitoring_info.seq = seq
         seq += 1
-        packet = header / monitoring_info / payload
+        packet = header / monitoring_info / gen_info / payload
         sock.send(packet)
-        time.sleep(1.0/ping_rate)
+        time.sleep(interval)
