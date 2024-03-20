@@ -19,13 +19,15 @@ def test_fullduplex_ping(use_fec, expected_max_duration, tap_env):
         "name": "latency_test",
         "data_bytes": 100000,
         "stop_condition": run.stop_condition.WHEN_TRAFFIC_DONE,
-        "traffic_generator": {
-            "func": "icmp_ping",
-            "kwargs": {
-                "ping_rate": 10,
-                "size": 10000,
-                "dst_ip_addr": "3.3.3.3",
-                "packets": 1,
+        "traffic": {
+            "gen": {
+                "name":"icmp_ping",
+                "report": "IcmpPingReport",
+                "params": {
+                    "dst_ip_addr": "3.3.3.3",
+                    "size": 10000,
+                    "packets": 1
+                }
             }
         },
         "app_config": {
