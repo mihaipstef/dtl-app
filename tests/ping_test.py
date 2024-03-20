@@ -33,13 +33,16 @@ def test_fullduplex_ping(fixture_name, packets, packet_sz, protocol, use_fec, re
         "name": "ofdm_fullduplex_test",
         "data_bytes": 100000,
         "stop_condition": run.stop_condition.WHEN_TRAFFIC_DONE,
-        "traffic_generator": {
-            "func": "icmp_ping",
-            "kwargs": {
-                "ping_rate": 0.5,
-                "size": packet_sz,
-                "dst_ip_addr": "3.3.3.3",
-                "packets": packets,
+        "traffic": {
+            "gen": {
+                "name":"icmp_ping",
+                "report": "IcmpPingReport",
+                "params": {
+                    "dst_ip_addr": "3.3.3.3",
+                    "ping_rate": 0.5,
+                    "size": packet_sz,
+                    "packets": packets
+                }
             }
         },
         "app_config": {
